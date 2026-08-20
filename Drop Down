@@ -1,0 +1,29 @@
+DATA: ivrm_values TYPE vrm_values.
+DATA: xvrm_values LIKE LINE OF ivrm_values.
+DATA: name TYPE vrm_id.
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_status.
+
+  name = 'P_STATUS'.
+
+  xvrm_values-key = 'Approved'.
+  xvrm_values-text  =  'Approved'.
+  APPEND xvrm_values TO ivrm_values.
+  CLEAR xvrm_values.
+
+  xvrm_values-key = 'WIP'.
+  xvrm_values-text  =  'WIP'.
+  APPEND xvrm_values TO ivrm_values.
+  CLEAR xvrm_values.
+
+  xvrm_values-key = 'Rejected'.
+  xvrm_values-text  =  'Rejected'.
+  APPEND xvrm_values TO ivrm_values.
+  CLEAR xvrm_values.
+
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = name
+      values = ivrm_values.
