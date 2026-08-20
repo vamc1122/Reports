@@ -1,0 +1,17 @@
+SELECTION-SCREEN: BEGIN OF BLOCK blk3 WITH FRAME TITLE TEXT-003.
+  SELECTION-SCREEN COMMENT /1(70) gc_text1.
+  SELECTION-SCREEN COMMENT /1(70) gc_text2.
+  SELECTION-SCREEN COMMENT /1(70) gc_text3.
+  SELECTION-SCREEN COMMENT /1(70) gc_text4.
+SELECTION-SCREEN: END OF BLOCK blk3.
+
+INITIALIZATION.
+
+  CLEAR : gs_output, gs_vbrp, gv_error.
+  REFRESH : gt_output, gt_vbrp, s_fkdat, s_vbeln, s_fkart, s_kschl.
+  gv_date = sy-datum.
+
+  gc_text1 = 'Buyer - Bill To Address.' ##NO_TEXT.
+  gc_text2 = 'Seller - Plant Address.'  ##NO_TEXT.
+  gc_text3 = 'Ship To - Ship To Address.'  ##NO_TEXT.
+  gc_text4 = 'Dispatch - Plant Address.'  ##NO_TEXT.
