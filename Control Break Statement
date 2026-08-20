@@ -1,0 +1,20 @@
+
+  DATA: lv_miro_cum TYPE bseg-dmbe2. " Cumilative  Miro Value .  Added by FD4K909261
+  lv_miro_cum = 0.
+  SORT it_final BY doc_miro. " THE DOC_MIRO SHOULD BE FIRST FIELD IN INTERNAL TABLE.
+
+  LOOP AT it_final INTO wa_final.
+
+    AT NEW doc_miro.
+      DATA(lv_tabix) = sy-tabix.
+    ENDAT.
+
+    lv_miro_cum = lv_miro_cum + wa_final-wrbtr_miro.
+    AT END OF doc_miro.
+      wa_final-wrbtr_miro_c = lv_miro_cum.
+      CLEAR: lv_miro_cum.
+      MODIFY it_final FROM wa_final INDEX lv_tabix TRANSPORTING wrbtr_miro_c.
+    ENDAT.
+
+    CLEAR: wa_final.
+  ENDLOOP.
