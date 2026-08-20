@@ -1,0 +1,52 @@
+
+
+DATA: lr_data          TYPE REF TO data,
+      lr_data_ln_dscr  TYPE REF TO data,
+      ls_metadata      TYPE cl_salv_bs_runtime_info=>s_type_metadata,
+      lr_data_descr    TYPE REF TO cl_abap_datadescr,
+      lr_data_ln_descr TYPE REF TO cl_abap_datadescr,
+      r_alv_table      TYPE REF TO cl_salv_table,
+      r_func           TYPE REF TO cl_salv_functions.
+FIELD-SYMBOLS <it_data> TYPE ANY TABLE.
+FIELD-SYMBOLS <it_data_line> TYPE ANY TABLE.
+FIELD-SYMBOLS <it_data1> TYPE ANY TABLE.
+FIELD-SYMBOLS <wa_data> TYPE any.
+
+
+
+  cl_salv_bs_runtime_info=>set(
+  EXPORTING display  = abap_false
+            metadata = abap_true
+               data  = abap_true ).
+
+  SUBMIT rm07mlbs AND RETURN
+  WITH matnr IN s_matnr
+  WITH werks IN s_werks
+  WITH lgort IN s_lgort
+  WITH charg IN s_charg
+  WITH matart IN s_mtart
+  WITH matkla IN s_matkl
+  WITH ekgrup IN s_ekgrp.
+
+  TRY.
+      cl_salv_bs_runtime_info=>get_data_ref(
+      IMPORTING r_data_descr = lr_data_descr ).
+      IF lr_data_descr IS NOT INITIAL.
+        CREATE DATA lr_data TYPE HANDLE lr_data_descr.
+        ASSIGN lr_data->* TO <it_data>.
+        cl_salv_bs_runtime_info=>get_data(
+        IMPORTING
+        t_data = <it_data>  ).
+      ENDIF.
+    CATCH cx_salv_bs_sc_runtime_info.
+  ENDTRY.
+
+  IF <it_data> IS ASSIGNED.
+
+    LOOP AT <it_data> INTO <wa_data>.
+      MOVE-CORRESPONDING <wa_data> TO ls_final.
+      APPEND ls_final TO lt_final.
+    endloop.
+  endif.
+
+    cl_salv_bs_runtime_info=>clear_all( ).
