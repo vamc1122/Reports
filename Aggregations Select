@@ -1,0 +1,22 @@
+        SELECT mslb~matnr, mslb~werks, mslb~sobkz, mslb~lifnr,
+               SUM( lblab ) AS labst, SUM( lbuml ) AS umlme, SUM( lbins ) AS insme, SUM( lbein ) AS einme,
+               SUM( salk3 ) AS salk3, SUM( lbkum ) AS lbkum
+          CONNECTION (dbcon)
+          FROM mslb
+            INNER JOIN mara ON mslb~matnr = mara~matnr
+            INNER JOIN marc ON mslb~matnr = marc~matnr AND mslb~werks = marc~werks
+            INNER JOIN t001w ON mslb~werks = t001w~werks
+            LEFT OUTER JOIN mbew ON t001w~bwkey = mbew~bwkey AND mslb~matnr = mbew~matnr AND mbew~bwtar = ''
+          APPENDING CORRESPONDING FIELDS OF TABLE @collector_joined
+          WHERE xchar = ''
+            AND mslb~matnr IN @matnr
+            AND mslb~werks IN @werks
+            AND mslb~sobkz IN @so_sobkz
+            AND ( lblab IN @r_stopt
+             OR   lbins IN @r_stopt
+             OR   lbein IN @r_stopt
+             OR   lbuml IN @r_stopt )
+             AND marc~ekgrp IN @ekgrup
+             AND mara~matkl IN @matkla
+             AND mara~mtart IN @matart
+          GROUP BY mslb~matnr, mslb~werks, mslb~sobkz, mslb~lifnr.
