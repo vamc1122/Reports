@@ -1,0 +1,22 @@
+
+""It will not work 
+
+FORM pf_status USING rt_extab TYPE slis_t_extab    ##CALLED.
+   DATA: layout TYPE lvc_s_layo.
+  DATA: o_grid TYPE REF TO cl_gui_alv_grid.
+
+  SET PF-STATUS 'UPDATE'.
+
+  IF o_grid IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = o_grid.
+    layout-no_headers = 'X'.
+*    layout-sel_mode   = 'A'.
+    CALL METHOD o_grid->set_frontend_layout
+      EXPORTING
+        is_layout = layout.
+*    CALL METHOD o_grid->refresh_table_display.
+
+  ENDIF.
+ENDFORM.
