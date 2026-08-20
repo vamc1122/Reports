@@ -1,0 +1,73 @@
+REPORT ZSDR_REPOTRS NO STANDARD PAGE HEADING LINE-SIZE 133 LINE-COUNT 30(2).
+
+TABLES: vbap,ekko,mara.
+SELECTION-SCREEN BEGIN OF BLOCK a1 WITH FRAME TITLE text-001.
+
+
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS :p1 as checkbox USER-COMMAND uc1.
+    SELECTION-SCREEN COMMENT (30) for field p1.
+    PARAMETERS :p2 as checkbox USER-COMMAND uc2.
+    SELECTION-SCREEN COMMENT (40) for field p2.
+    PARAMETERS :p3 as checkbox USER-COMMAND uc3.
+    SELECTION-SCREEN COMMENT (50) for field p3.
+  SELECTION-SCREEN END OF LINE.
+" a2
+  SELECTION-SCREEN BEGIN OF block a2 WITH FRAME TITLE text-002.
+     SELECT-OPTIONS:  s_vbeln FOR vbap-vbeln MODIF ID 111,
+                      s_erdat for vbap-erdat MODIF ID 111.
+   SELECTION-SCREEN END OF block a2.
+" a3
+  SELECTION-SCREEN BEGIN OF block a3 WITH FRAME TITLE text-003.
+     SELECT-OPTIONS: s_ebeln FOR ekko-ebeln MODIF ID 222,
+                     s_aedat for ekko-aedat MODIF ID 222.
+     SELECTION-SCREEN END OF block a3.
+" a4
+ SELECTION-SCREEN BEGIN OF block a4 WITH FRAME TITLE text-004.
+   SELECT-OPTIONS:  s_matnr FOR mara-matnr MODIF ID 333,
+                    s_mtart for mara-mtart MODIF ID 333.
+    SELECTION-SCREEN END OF block a4.
+
+
+      SELECTION-SCREEN BEGIN OF LINE.
+      PARAMETERS p4 as CHECKBOX USER-COMMAND uc4.
+      SELECTION-SCREEN END OF  line.
+      skip 7.
+
+      PARAMETERS p_file TYPE ibipparms-path MODIF ID 444.
+
+SELECTION-SCREEN END OF BLOCK a1.
+
+AT SELECTION-SCREEN OUTPUT.
+  IF P1 = 'X'.
+      LOOP AT SCREEN.
+
+      IF SCREEN-GROUP1 = '222'.
+        SCREEN-INPUT = 0.
+         MODIFY SCREEN.
+        ENDIF.
+        if screen-group1 = '333'.
+          screen-input = 0. "DOUGHT
+          MODIFY SCREEN .
+          endif.
+
+           if screen-group1 = '444'.
+          screen-input = 0. " EXTREA ONE FEILD WILL COME SEARCH
+          MODIFY SCREEN .
+          endif.
+*    ELSEIF P2 = 'X'.
+*      IF SCREEN-NAME = 'P3'. "AND
+**        SCREEN-NAME = 'P3'.
+*        SCREEN-INPUT = 1.
+*         MODIFY SCREEN.
+*        ENDIF.
+**     ELSEIF P3 = 'X'.
+**        IF SCREEN-NAME = 'P1' AND
+**         SCREEN-NAME = 'P2'.
+**        SCREEN-INPUT = 0.
+**         MODIFY SCREEN.
+**        ENDIF.
+*
+*      ENDIF.
+      ENDLOOP.
+      ENDIF.
