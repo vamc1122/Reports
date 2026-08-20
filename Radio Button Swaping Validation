@@ -1,0 +1,25 @@
+  PARAMETERS :
+    r1 RADIOBUTTON GROUP g1 USER-COMMAND msg DEFAULT 'X',
+    r2 RADIOBUTTON GROUP g1.
+
+
+At selection Screen output.
+  IF r2 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'R2'.
+        CLEAR s_cpudt[].
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+*
+  IF r1 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'R1'.
+        IF  s_cpudt IS INITIAL.
+          PERFORM validation.
+        ENDIF.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
