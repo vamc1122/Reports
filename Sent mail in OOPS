@@ -1,0 +1,212 @@
+FORM send_mail .
+  DATA: mt_fcat TYPE lvc_t_fcat.
+  DATA: mt_data TYPE REF TO data.
+  DATA: m_flavour TYPE string.
+  DATA: m_version TYPE string.
+  DATA: mo_result_data TYPE REF TO cl_salv_ex_result_data_table.
+  DATA: mo_columns  TYPE REF TO cl_salv_columns_table.
+  DATA: mo_aggreg   TYPE REF TO cl_salv_aggregations.
+  DATA: mo_salv_table  TYPE REF TO cl_salv_table.
+  DATA: m_file_type TYPE salv_bs_constant.
+  DATA: g_xstring TYPE xstring.
+  DATA: g_len TYPE i.
+  DATA: binary_content TYPE solix_tab.
+  DATA: main_text      TYPE bcsy_text.
+  DATA: document       TYPE REF TO cl_document_bcs.
+  DATA: recipient      TYPE REF TO if_recipient_bcs.
+  FIELD-SYMBOLS <tab> TYPE ANY TABLE.
+  DATA: send_request   TYPE REF TO cl_bcs.
+  DATA: lt_att_head    TYPE soli_tab.
+  DATA: lv_filename    TYPE string.
+  DATA: lv_text_line    TYPE soli.
+  DATA: lv_atta_size TYPE sood-objlen.
+  DATA: lv_sub  TYPE so_obj_des.
+
+  DATA: ct_fieldcat TYPE lvc_t_fcat,
+        cs_fieldcat TYPE LINE OF lvc_t_fcat       ##NEEDED.
+  DATA: bcs_error TYPE REF TO cx_send_req_bcs.
+  DATA: bcs_mess TYPE string        ##NEEDED.
+
+  DATA: lr_addr_exc     TYPE REF TO cx_address_bcs     ##NEEDED,
+        lx_document_bcs TYPE REF TO cx_document_bcs    ##NEEDED.
+  DATA : s_mailid        TYPE RANGE OF adr6-smtp_addr.
+  DATA : ls_mailid       LIKE LINE OF s_mailid.
+  FIELD-SYMBOLS <fs_fcat> TYPE lvc_s_fcat.
+  IF NOT it_final IS INITIAL.
+    MOVE-CORRESPONDING it_final to it_excell.
+    GET REFERENCE OF it_excell INTO mt_data.
+
+* --if we didn't pass fieldcatalog we need to create it
+    ASSIGN mt_data->* TO <tab>.
+    TRY .
+        cl_salv_table=>factory(
+        EXPORTING
+        list_display = abap_false
+        IMPORTING
+        r_salv_table = mo_salv_table
+        CHANGING
+        t_table      = <tab> ).
+      CATCH cx_salv_msg       ##NO_HANDLER.
+    ENDTRY.
+
+**--get colums & aggregation infor to create fieldcat
+    mo_columns  = mo_salv_table->get_columns( ).
+    mo_aggreg   = mo_salv_table->get_aggregations( ).
+    mt_fcat     =  cl_salv_controller_metadata=>get_lvc_fieldcatalog(
+    r_columns      = mo_columns
+    r_aggregations = mo_aggreg ).
+
+    LOOP AT mt_fcat ASSIGNING <fs_fcat>.
+      CASE <fs_fcat>-fieldname.
+        WHEN 'LIFNR'.
+          <fs_fcat>-coltext = TEXT-005.
+        WHEN 'NAME1'.
+          <fs_fcat>-coltext = TEXT-006.
+        WHEN 'MATNR'.
+          <fs_fcat>-coltext = TEXT-007.
+        WHEN 'MAKTX'.
+          <fs_fcat>-coltext = TEXT-008.
+        WHEN 'WERKS'.
+          <fs_fcat>-coltext = TEXT-009.
+        WHEN 'LBLAB'.
+          <fs_fcat>-coltext = TEXT-010.
+      ENDCASE.
+    ENDLOOP.
+
+    IF cl_salv_bs_a_xml_base=>get_version( ) EQ if_salv_bs_xml=>version_25 OR
+       cl_salv_bs_a_xml_base=>get_version( ) EQ if_salv_bs_xml=>version_26.
+
+      IF ct_fieldcat IS NOT INITIAL.
+        mo_result_data = cl_salv_ex_util=>factory_result_data_table(
+           r_data                      = mt_data
+           t_fieldcatalog              = ct_fieldcat ).
+
+      ELSE.
+        mo_result_data = cl_salv_ex_util=>factory_result_data_table(
+          r_data                      = mt_data
+          t_fieldcatalog              = mt_fcat ).
+      ENDIF.
+
+      CASE cl_salv_bs_a_xml_base=>get_version( ).
+        WHEN if_salv_bs_xml=>version_25.
+          m_version = if_salv_bs_xml=>version_25.
+        WHEN if_salv_bs_xml=>version_26.
+          m_version = if_salv_bs_xml=>version_26.
+      ENDCASE.
+
+      m_file_type = if_salv_bs_xml=>c_type_xlsx.
+      m_flavour = if_salv_bs_c_tt=>c_tt_xml_flavour_export.
+
+**--transformation of data to excel
+      CLEAR g_xstring.
+      CALL METHOD cl_salv_bs_tt_util=>if_salv_bs_tt_util~transform
+        EXPORTING
+          xml_type      = m_file_type
+          xml_version   = m_version
+          r_result_data = mo_result_data
+          xml_flavour   = m_flavour
+          gui_type      = if_salv_bs_xml=>c_gui_type_gui
+        IMPORTING
+          xml           = g_xstring.
+    ENDIF.
+
+    CLEAR g_len.
+    g_len = xstrlen( g_xstring ).
+
+    CALL METHOD cl_bcs_convert=>xstring_to_solix
+      EXPORTING
+*       iv_string  = g_xstring1
+        iv_xstring = g_xstring
+*       iv_codepage = '4103'   "suitable for MS Excel, leave empty
+*       iv_add_bom = c_xx      "for other doc types
+      RECEIVING
+        et_solix   = binary_content.
+*      ev_size   = size
+*       ).
+    CLEAR lv_filename.
+    lv_filename = |{ p_sub } T { sy-uzeit TIME = USER } { TEXT-123 }|. "sub + time + .XLSX
+*--sending mail
+    TRY.
+        send_request = cl_bcs=>create_persistent( ).
+
+**--create document object from internal table with text
+        REFRESH main_text[].
+        APPEND TEXT-124 TO main_text                                                    ##NO_TEXT.
+        APPEND ' ' TO main_text.
+        DATA(wbody) = |{ TEXT-125 }|.
+        APPEND wbody TO main_text.
+        APPEND ' ' TO main_text.
+        APPEND ' ' TO main_text.
+        APPEND TEXT-127 TO main_text                            ##NO_TEXT.
+        APPEND TEXT-128 TO main_text      ##NO_TEXT.
+        APPEND ' '  TO main_text.
+*        CONCATENATE p_esub lv_datum INTO lv_sub SEPARATED BY space.
+        lv_sub = p_sub.
+        TRY.
+            document = cl_document_bcs=>create_document(
+            i_type    = 'RAW'
+            i_text    = main_text
+            i_subject = lv_sub ) .
+
+*     add the spread sheet as attachment to document object
+            lv_atta_size = g_len.
+
+            CLEAR lv_text_line.
+            REFRESH : lt_att_head[].
+
+            CONCATENATE '&SO_FILENAME=' lv_filename INTO lv_text_line.
+            APPEND lv_text_line TO lt_att_head.
+
+            document->add_attachment(
+            i_attachment_type    = 'BIN'
+            i_attachment_subject = lv_sub
+            i_attachment_size    = lv_atta_size
+            i_att_content_hex    = binary_content
+            i_attachment_header  = lt_att_head ).
+
+**--add document object to send request
+            send_request->set_document( document ).
+          CATCH cx_document_bcs INTO lx_document_bcs       ##NO_HANDLER.
+        ENDTRY.
+
+** Add Input Mail ids To mails internal table.
+        IF s_email IS NOT INITIAL.
+          LOOP AT s_email.
+            ls_mailid-low    = s_email-low.
+            ls_mailid-sign   = 'I'.
+            ls_mailid-option = 'EQ'.
+            APPEND ls_mailid TO s_mailid.
+          ENDLOOP.
+        ENDIF.
+
+        TRY.
+            LOOP AT s_mailid INTO ls_mailid.
+              TRY.
+                  recipient = cl_cam_address_bcs=>create_internet_address( ls_mailid-low ).
+
+**--add recipient object to send request
+                  send_request->add_recipient( recipient ).
+                CATCH cx_address_bcs INTO lr_addr_exc            ##NO_HANDLER.
+              ENDTRY.
+            ENDLOOP.
+          CATCH cx_address_bcs INTO lr_addr_exc                      ##NO_HANDLER.
+        ENDTRY.
+        TRY.
+            CALL METHOD send_request->set_send_immediately( 'X' ).
+            CALL METHOD send_request->send( ).
+          CATCH cx_send_req_bcs INTO bcs_error.
+            bcs_mess = bcs_error->get_text( ).
+        ENDTRY.
+        COMMIT WORK           ##SUBRC_AFTER_COMMIT.
+        IF sy-subrc = 0.
+          MESSAGE TEXT-129 TYPE 'S'.
+        ENDIF.
+      CATCH cx_send_req_bcs INTO bcs_error.
+        bcs_mess = bcs_error->get_text( ).
+    ENDTRY.
+
+    IF sy-batch IS NOT INITIAL.
+      PERFORM display_hdr_data.
+    ENDIF.
+  ENDIF.
+ENDFORM.
