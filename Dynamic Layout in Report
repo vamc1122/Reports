@@ -1,0 +1,2997 @@
+*&---------------------------------------------------------------------*
+*& Project               : Ather                                       *
+*& Module                : SD                                          *
+*& Object Name           : ZMES_SD_SALES_REG                           *
+*& Functional Consultant : VijayKumar(ITTI)                            *
+*& Technical Consultant  : Ramakrishna Reddy                           *
+*& Development Request   :                                             *
+*& Transaction Code      : YSLS_REG                                    *
+*& Description           : Sales Register                              *inv
+*& Package               : Z001                                        *
+************************************************************************
+*                                                                      *
+*            Copyright (c) 2012 by Mesprosoft Pvt Ltd.                 *
+*                      All rights reserved                             *
+*                                                                      *
+************************************************************************
+* No part of this program may be used or reproduced in any form by any *
+* means without written permission from Mesprosoft Pvt Ltd.            *
+*                                                                      *
+* This is confidential and proprietary information that may   not be   *
+* published, disclosed, or made available without the prior written    *
+* consent of Mesprosoft Pvt Ltd                                        *
+*                                                                      *
+************************************************************************
+*Date       | TR#           | Changed By  | Description
+*22.04.2022 | SHDK906688    | Radhika     | Handling and Logistics field
+* making negative
+*23.05.2022 | SHDK906823    | Radhika  | New Billing type ZAPA added
+*10.06.2022 | SHDK906931    | Radhika  | Exclude ZDVP records
+*22.11.2022 | SHDK908990    | Radhika  | Excluded ZDPR
+*23.12.2022 | SHDK909485    | Radhika  | Added ZARC document type changes
+*04.07.2023 | SHDK912623    | Radhika  | Add customer category in o/p
+*03.08.2023 | SHDK913026    | Radhika | Condition type ZSCP tp be added for Scrap
+*04.08.2023 | SHDK913046    | Radhika | To add Post GST Discount ZAGD
+*29.08.2023 | SHDK913355    | Radhika | New col added, ZAMD added
+*21.12.2023 | SHDK914323    | Radhika | Report modifications as per BSOFT-21076
+*20.09.2024 | SHDK917813    | Radhika | 2000002713: PM Drive Subsidy BSOFT-39295
+*28.08.2025 | SHDK923129    | Chenthamarai R | State Description & Export invoice local curr
+*09.09.2025 | SHDK923129    | Vamsi   | Added the Email functionality and changed FM to Table level
+*                                       logic for Manufacturer serial number
+*28.11.2025 | SHDK924280    | Radhika | Ysal_reg(layout wise)BSOFT-66759
+*02.12.2025 | SHDK924280    | vamsi   | Added Layout Name field in Input screen based on name will display and sent mail
+*&---------------------------------------------------------------------*
+REPORT zmes_sd_sal_reg_layout.
+TABLES : vbrk,t001w,vbrp,
+         adr6.             "Addedj
+TYPES : BEGIN OF ty_fnl,
+          vbeln            TYPE vbrk-vbeln,
+          posnr            TYPE vbrp-posnr,
+          fkart            TYPE vbrk-fkart,
+          vtext            TYPE tvfkt-vtext, "Added By Amit R on 01.07.2020
+          xblnr            TYPE bkpf-xblnr,
+          bstnk_vf         TYPE vbrk-bstnk_vf,
+          fkdat            TYPE vbrk-fkdat,
+          fkdat_n          TYPE char10,     " BSOFT-33058
+          ernam            TYPE vbrk-ernam,
+          bukrs            TYPE vbrk-bukrs,
+          waerk            TYPE vbrk-waerk,
+          vkorg            TYPE vbrk-vkorg,
+          vtweg            TYPE vbrk-vtweg,
+          spart            TYPE vbrk-spart,
+          kunrg            TYPE vbrk-kunrg,
+          cust_cat         TYPE char20,
+          name(200),
+          region           TYPE adrc-region,
+          reg_desc(40),
+          bpext            TYPE but000-bpext,
+          stcd3            TYPE kna1-stcd3,
+          matnr            TYPE vbrp-matnr,
+          arktx            TYPE vbrp-arktx,
+          werks            TYPE vbrp-werks,
+          gstin            TYPE j_1bbranch-gstin,
+          wkreg            TYPE vbrp-wkreg,
+          reg_del_desc(40),
+          aubel            TYPE vbrp-aubel,
+          aupos            TYPE vbrp-aupos,
+          vgbel            TYPE vbrp-vgbel,
+          vgpos            TYPE vbrp-vgpos,
+          fkimg            TYPE vbrp-fkimg,
+          vrkme            TYPE vbrp-vrkme,
+          steuc            TYPE marc-steuc,
+          vin              TYPE string,
+          motor            TYPE string,
+          color            TYPE string,
+          rate             TYPE kbetr,
+          discount         TYPE kbetr,
+          handling         TYPE kbetr,
+          kwert            TYPE vfprc_element_value,
+          sgst             TYPE kbetr,
+          cgst             TYPE kbetr,
+          igst             TYPE kbetr,
+          psgst            TYPE kbetr,
+          pcgst            TYPE kbetr,
+          pigst            TYPE kbetr,
+          fame_sub         TYPE kbetr,
+          emps_subs        TYPE kbetr,           "BSOFT-29474
+          ssub             TYPE kbetr,
+          post_gst         TYPE kbetr,                      "SHDK913046
+          aps              TYPE kbetr,            "BSOFT-29474
+          mwsk1            TYPE prcd_elements-mwsk1,
+          text1            TYPE t007s-text1,
+          tot_amt          TYPE netpr,
+          sernr            TYPE string,
+          auart            TYPE vbak-auart,
+          pqty             TYPE ekpo-menge,
+          meins            TYPE ekpo-meins,
+*          WERKS     TYPE EKPO-WERKS,
+          werk1            TYPE ekpo-werks,
+          qty_prc          TYPE kbetr,
+          belnr            TYPE bkpf-belnr,
+          zuonr            TYPE vbak-zuonr,
+          plant_des        TYPE t001w-name1,
+          pod_dat          TYPE char10,
+          kunnr            TYPE kunnr,
+          ori_invno        TYPE vbrk-xblnr,   "Added on 27.04.2023  #5726
+          ori_invdt        TYPE vbrk-fkdat,   "Added on 27.04.2023  #5726
+          ori_invdt_n      TYPE char10,   "Added on 27.04.2023  #5726
+          soqty            TYPE vbap-kwmeng,
+          paydocdt         TYPE bseg-h_budat,
+          udate            TYPE jcds-udate,
+          sotypdesc        TYPE tvakt-bezei,
+*  BoC SHDK913355
+          b2b_b2c          TYPE char3,
+          doc_type         TYPE dd07t-ddtext,
+          supply_type      TYPE char6,
+          taxable_amnt     TYPE kbetr,
+          ship_billno      TYPE char40,
+          ship_billdate    TYPE char40,
+          port             TYPE char40,
+          irn_num          TYPE zirn,
+          irn_status       TYPE zirn_sts,
+          posting_date     TYPE vbrk-fkdat,
+          posting_date_n   TYPE char10,   "BSOFT-33058
+          total_tax        TYPE kbetr,
+          zterm            TYPE vbrk-zterm,
+          vtext_zterm      TYPE tvzbt-vtext,
+*  Eoc
+*  Boc SHDK913900
+          tcs              TYPE c LENGTH 3,
+          tcs_rate         TYPE kbetr,
+          tcs_value        TYPE kbetr,
+          total_cgst       TYPE kbetr,
+          total_sgst       TYPE kbetr,
+          total_igst       TYPE kbetr,
+          irn_date         TYPE char10,
+          irn_date_n       TYPE char10,
+          gst_shipto       TYPE kna1-stcd3,
+          gst_shipto_n     TYPE kna1-stcd3,
+          land1            TYPE kna1-land1,
+          invamt_tcs       TYPE kbetr,
+          ret_per          TYPE char10,
+*  Eoc
+          zpds             TYPE kwert, "BSOFT-39295
+*  BSOFT-51836 BoC
+          prctr            TYPE prctr,
+          mtart            TYPE mara-mtart,
+          ktgrd            TYPE vbrk-ktgrd,
+          ktgrm            TYPE vbrp-ktgrm,
+* EoC
+          state_desc       TYPE   t005u-bezei,
+          exp_inv          TYPE   netpr,              " Added by AE2926
+        END OF ty_fnl,
+
+        BEGIN OF ty_vbrkp,
+          vbeln    TYPE char20, "VBRK-VBELN,
+          posnr    TYPE vbrp-posnr,
+          fkart    TYPE vbrk-fkart,
+          bstnk_vf TYPE vbrk-bstnk_vf,
+          fkdat    TYPE vbrk-fkdat,
+          knumv    TYPE vbrk-knumv,
+          vbtyp    TYPE vbrk-vbtyp,
+          kurrf    TYPE kurrf,                  " Added by AE2926
+          ernam    TYPE vbrk-ernam,
+          bukrs    TYPE vbrk-bukrs,
+          waerk    TYPE vbrk-waerk,
+          vkorg    TYPE vbrk-vkorg,
+          vtweg    TYPE vbrk-vtweg,
+          spart    TYPE vbrk-spart,
+          kunrg    TYPE vbrk-kunrg,
+          kalsm    TYPE vbrk-kalsm,
+          matnr    TYPE vbrp-matnr,
+          arktx    TYPE vbrp-arktx,
+          werks    TYPE vbrp-werks,
+          wkreg    TYPE vbrp-wkreg,
+          aubel    TYPE vbrp-aubel,
+          aupos    TYPE vbrp-aupos,
+          vgbel    TYPE vbrp-vgbel,
+          vgpos    TYPE vbrp-vgpos,
+          fkimg    TYPE vbrp-fkimg,
+          vrkme    TYPE vbrp-vrkme,
+          name1    TYPE kna1-name1,
+          name2    TYPE kna1-name2,
+          stcd3    TYPE kna1-stcd3,
+
+          xblnr    TYPE vbrk-xblnr,                         "SHDK913355
+          land1    TYPE kna1-land1,                         "SHDK913355
+* Begin of addition by AE2926
+          regio    TYPE regio,
+          spras    TYPE spras,
+* End of addition by AE2926
+          sfakn    TYPE vbrk-sfakn,
+          zterm    TYPE vbrk-zterm,                         "SHDK913355
+          auart    TYPE vbak-auart,
+          objnr    TYPE vbak-objnr,
+          bstnk    TYPE vbak-bstnk,
+*     BoC BSOFT-51836
+          prctr    TYPE vbrp-prctr,
+          ktgrm    TYPE vbrp-ktgrm,
+          ktgrd    TYPE vbrk-ktgrd,
+* EoC
+        END OF ty_vbrkp,
+
+        BEGIN OF ty_vbrkptmp,
+          vbeln    TYPE char10, "VBRK-VBELN,
+          posnr    TYPE vbrp-posnr,
+          fkart    TYPE vbrk-fkart,
+          bstnk_vf TYPE vbrk-bstnk_vf,
+          fkdat    TYPE vbrk-fkdat,
+          knumv    TYPE vbrk-knumv,
+          vbtyp    TYPE vbrk-vbtyp,
+          ernam    TYPE vbrk-ernam,
+          bukrs    TYPE vbrk-bukrs,
+          waerk    TYPE vbrk-waerk,
+          vkorg    TYPE vbrk-vkorg,
+          vtweg    TYPE vbrk-vtweg,
+          spart    TYPE vbrk-spart,
+          kunrg    TYPE vbrk-kunrg,
+          kalsm    TYPE vbrk-kalsm,
+          matnr    TYPE vbrp-matnr,
+          arktx    TYPE vbrp-arktx,
+          werks    TYPE vbrp-werks,
+          wkreg    TYPE vbrp-wkreg,
+          aubel    TYPE vbrp-aubel,
+          aupos    TYPE vbrp-aupos,
+          vgbel    TYPE vbrp-vgbel,
+          vgpos    TYPE vbrp-vgpos,
+          fkimg    TYPE vbrp-fkimg,
+          vrkme    TYPE vbrp-vrkme,
+          name1    TYPE kna1-name1,
+          name2    TYPE kna1-name2,
+          stcd3    TYPE kna1-stcd3,
+          auart    TYPE vbak-auart,
+          objnr    TYPE vbak-objnr,
+          xblnr    TYPE vbrk-xblnr,                         "SHDK913355
+          land1    TYPE kna1-land1,                         "SHDK913355
+          sfakn    TYPE vbrk-sfakn,
+          zterm    TYPE vbrk-zterm,                         "SHDK913355
+        END OF ty_vbrkptmp,
+
+        BEGIN OF ty_bkpf,
+          bukrs TYPE bkpf-bukrs,
+          belnr TYPE bkpf-belnr,
+          gjahr TYPE bkpf-gjahr,
+          monat TYPE bkpf-monat,
+          awkey TYPE vbrk-vbeln,
+          xblnr TYPE bkpf-xblnr,
+          budat TYPE bkpf-budat,
+        END OF ty_bkpf,
+
+        BEGIN OF ty_user,
+          uname TYPE syst-uname,
+        END OF ty_user.
+
+TYPES: BEGIN OF ty_dd07t,
+         domvalue_l TYPE dd07t-domvalue_l,
+*             domname    TYPE dd07t-domname,
+       END OF ty_dd07t.
+
+DATA : tfnl             TYPE TABLE OF ty_fnl,
+       wfnl             TYPE ty_fnl,
+       tvbrkp           TYPE TABLE OF ty_vbrkp,
+       tser01           TYPE TABLE OF ser01,
+       wser01           TYPE ser01,
+       tobjk            TYPE TABLE OF objk,
+       wobjk            TYPE objk,
+       es_itob          TYPE bapi_itob,
+       wa_zhistory_card TYPE zhistory_card,
+       tbkpf            TYPE TABLE OF ty_bkpf,
+       val              TYPE ekpo-ebelp,
+       tvbfa            TYPE TABLE OF vbfa,
+       wvbfa            TYPE vbfa,
+       tvbak            TYPE TABLE OF vbak,
+       wvbak            TYPE vbak,
+       it_vbrk          TYPE TABLE OF vbrk,      "Added on 27.04.2023 #5726
+       it_vbrk1         TYPE TABLE OF vbrk,      "Added on 27.04.2023 #5726
+       wa_vbrk          TYPE vbrk,         "Added on 27.04.2023  #5726
+       wa_vbrk1         TYPE vbrk.         "Added on 27.04.2023  #5726
+DATA: it_user TYPE STANDARD TABLE OF ty_user,
+      wa_user TYPE ty_user.
+DATA : it_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_fieldcat TYPE slis_fieldcat_alv,
+       wa_layout   TYPE slis_layout_alv.
+
+DATA : it_vbap     TYPE TABLE OF vbap,
+       wa_vbap     TYPE vbap,
+       it_bseg     TYPE TABLE OF bseg,
+       it_bseg1    TYPE TABLE OF bseg,
+       it_bseg2    TYPE TABLE OF bseg,
+       wa_bseg     TYPE bseg,
+       wa_bseg1    TYPE bseg,
+       wa_bseg2    TYPE bseg,
+       it_vbrkptmp TYPE TABLE OF ty_vbrkptmp,
+       wa_vbrkptmp TYPE ty_vbrkptmp,
+       it_jest     TYPE TABLE OF jest,
+       wa_jest     TYPE jest,
+       it_jcds     TYPE TABLE OF jcds,
+       wa_jcds     TYPE jcds,
+       it_tvakt    TYPE TABLE OF tvakt,
+       wa_tvakt    TYPE tvakt.
+TYPES : BEGIN OF lr_fldrange,
+          sign   TYPE tvarvc-sign,
+          option TYPE tvarvc-opti,
+          low    TYPE string,
+          high   TYPE string,
+        END OF lr_fldrange.
+DATA : lt_fldrange TYPE STANDARD TABLE OF lr_fldrange.
+DATA : lt_fcat_in TYPE lvc_t_fcat.
+DATA : lt_fcat_out TYPE lvc_t_fcat.
+DATA : ls_variant TYPE disvariant.
+DATA : it_dd07t TYPE TABLE OF ty_dd07t.
+*DATA : w_return TYPE bapiret2.
+
+INITIALIZATION.
+*----------------------------------------------------------------------*
+* SELECTION-SCREEN                                                     *
+*----------------------------------------------------------------------*
+  SELECTION-SCREEN BEGIN OF BLOCK b WITH FRAME TITLE TEXT-001.
+    PARAMETERS : s_bukrs TYPE vbrk-bukrs OBLIGATORY DEFAULT '1000'.
+    SELECT-OPTIONS:s_date FOR vbrk-fkdat OBLIGATORY,
+                   s_werks FOR vbrp-werks,
+                   s_fkart FOR vbrk-fkart,  "BOC SHDK908607
+                   s_matnr FOR vbrp-matnr,
+                   s_kunag FOR vbrk-kunag,
+                   s_vtweg FOR vbrk-vtweg,  "EOC SHDK908607
+                   s_vbeln FOR vbrk-vbeln.
+    PARAMETERS : p_chk AS CHECKBOX.
+
+*Maintain Radiobuttons to display OUTPUT and send Mail
+    PARAMETERS :
+      p_rb1 RADIOBUTTON GROUP rb DEFAULT 'X',              "Addedj
+      p_rb2 RADIOBUTTON GROUP rb.              "Addedj
+    PARAMETERS : p_layout TYPE slis_vari. "
+
+  SELECTION-SCREEN END OF BLOCK b.
+  SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-003.
+    SELECT-OPTIONS : s_name FOR adr6-smtp_addr MODIF ID m1 NO INTERVALS.
+    PARAMETERS : p_esub TYPE char80.   "EOCm BSOFT-42671
+  SELECTION-SCREEN END OF BLOCK b2 .
+  SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-002.
+***  SELECT-OPTIONS: S_USER FOR SYST-UNAME NO INTERVALS .".
+    PARAMETERS : p_chk1 AS CHECKBOX.
+
+  SELECTION-SCREEN END OF BLOCK b1.
+
+
+
+INITIALIZATION.
+  SELECT  variant FROM ltdx INTO TABLE @DATA(lt_layout) WHERE report = @sy-cprog .
+
+
+AT SELECTION-SCREEN OUTPUT.
+*AT SELECTION-SCREEN.
+  REFRESH it_user.
+  SELECT low FROM tvarvc INTO TABLE  it_user WHERE name = 'YTABLEAU'.
+  READ TABLE it_user INTO wa_user WITH KEY uname = sy-uname.
+  IF sy-subrc <> 0.
+    CLEAR wa_user.
+  ENDIF.
+  IF wa_user-uname IS NOT INITIAL.
+    LOOP AT SCREEN.
+      IF screen-name = 'P_CHK1'.
+        screen-invisible = 0.
+        screen-active = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT SCREEN.
+      IF screen-name = 'P_CHK1'.
+        screen-invisible = 1.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+AT SELECTION-SCREEN .
+
+*     CALL FUNCTION 'ZWERKS_CHECK'
+*    IMPORTING
+*      return  = w_return
+*    TABLES
+*      s_werks = s_werks.
+*
+*  IF NOT w_return IS INITIAL.
+*    MESSAGE w_return-message TYPE 'W' DISPLAY LIKE 'E'.
+*  ENDIF.
+  IF p_rb2 IS NOT INITIAL AND s_name IS INITIAL.  "AddedJ
+    MESSAGE TEXT-004 TYPE 'E'.
+  ENDIF.
+
+  "Added by vamsi SHDK924280
+
+AT SELECTION-SCREEN ON p_layout.
+
+  IF p_layout IS NOT INITIAL.
+
+    READ TABLE lt_layout INTO DATA(ls_layout) WITH KEY  variant = p_layout.
+    IF sy-subrc NE 0.
+      MESSAGE TEXT-113 TYPE 'E'.
+    ENDIF.
+
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
+  IF lt_layout IS NOT INITIAL.
+    SORT lt_layout BY variant.
+    DELETE ADJACENT DUPLICATES FROM lt_layout COMPARING variant.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'SLIS_VARI'
+        dynpprog        = sy-cprog
+        dynpnr          = sy-dynnr
+        dynprofield     = 'P_LAYOUT'
+        value_org       = 'S'
+      TABLES
+*       value_tab       = it_ven_ac_grp
+        value_tab       = lt_layout
+*       return_tab      = it_return_tab
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDIF.
+  " eoc vamsi SHDK924280
+
+
+START-OF-SELECTION.
+
+  PERFORM get_data.
+  IF p_rb1 IS NOT INITIAL.
+    PERFORM dispay.
+  ELSEIF p_rb2 IS NOT INITIAL.               "Added by vamsi SHDK923129
+    PERFORM send_mail.                       "Added by vamsi  SHDK923129
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data .
+  DATA: it_ysal_reg TYPE STANDARD TABLE OF zysal_reg,
+        wa_ysal_reg TYPE zysal_reg.
+  REFRESH it_ysal_reg.
+  IF p_chk IS INITIAL.
+    SELECT a~vbeln b~posnr a~fkart a~bstnk_vf a~fkdat a~knumv a~vbtyp
+           a~kurrf                                                        " Added by AE2926
+         a~ernam a~bukrs a~waerk a~vkorg a~vtweg a~spart a~kunrg a~kalsm
+         b~matnr b~arktx b~werks b~wkreg b~aubel b~aupos
+         b~vgbel b~vgpos b~fkimg b~vrkme c~name1 c~name2
+         c~stcd3
+*      d~auart d~objnr
+         a~xblnr                                            "SHDK913355
+         c~land1
+* Begin of addition by AE2926
+         c~regio c~spras
+* End of addition by AE2926
+        a~sfakn                                             "SHDK913355
+         a~zterm                                            "SHDK913355
+      d~auart d~objnr
+      d~bstnk                            "BSOFT-51836
+      b~prctr b~ktgrm a~ktgrd            "BSOFT-51836
+         FROM vbrk AS a
+         INNER JOIN vbrp AS b
+         ON a~vbeln = b~vbeln
+         INNER JOIN kna1 AS c
+         ON a~kunrg = c~kunnr
+** Begin of addition by AE2926
+*         INNER JOIN t005u AS e
+*         ON c~land1 = e~land1
+*         AND c~regio = e~bland
+*         AND c~spras = e~spras
+** End of addition by AE2926
+         INNER JOIN vbak AS d
+         ON b~aubel = d~vbeln
+         INTO TABLE tvbrkp
+         WHERE a~bukrs = s_bukrs
+         AND a~fkdat IN s_date
+         AND b~werks IN s_werks
+         AND a~fkart IN s_fkart     "BOC SHDK908607
+         AND b~matnr IN s_matnr
+         AND a~kunag IN s_kunag
+         AND a~vtweg IN s_vtweg     "EOC SHDK908607
+         AND a~fkart NE 'ZSTO'
+         AND a~vbtyp NE 'U'
+    AND a~vbeln IN s_vbeln.
+
+  ELSEIF p_chk IS NOT INITIAL.
+    SELECT a~vbeln b~posnr a~fkart a~bstnk_vf a~fkdat a~knumv a~vbtyp
+     a~ernam a~bukrs a~waerk a~vkorg a~vtweg a~spart a~kunrg a~kalsm
+     b~matnr b~arktx b~werks b~wkreg b~aubel b~aupos
+     b~vgbel b~vgpos b~fkimg b~vrkme c~name1 c~name2
+     c~stcd3
+* Begin of addition by AE2926
+         c~regio c~spras
+* End of addition by AE2926
+*      d~auart d~objnr
+      a~xblnr                                               "SHDK913355
+      c~land1                                               "SHDK913355
+      a~sfakn
+      a~zterm                                               "SHDK913355
+       b~prctr b~ktgrm a~ktgrd        "BSOFT-51836
+      FROM vbrk AS a
+      INNER JOIN vbrp AS b
+      ON a~vbeln = b~vbeln
+      INNER JOIN kna1 AS c
+      ON a~kunrg = c~kunnr
+** Begin of addition by AE2926
+*         INNER JOIN t005u AS e
+*         ON c~land1 = e~land1
+*         AND c~regio = e~bland
+*         AND c~spras = e~spras
+** End of addition by AE2926
+*      INNER JOIN vbak AS d
+*         ON b~aubel = d~vbeln
+*      INTO TABLE tvbrkp
+      INTO CORRESPONDING FIELDS OF TABLE tvbrkp
+      WHERE a~bukrs = s_bukrs
+      AND a~fkdat IN s_date
+      AND b~werks IN s_werks
+      AND a~fkart IN s_fkart     "BOC SHDK908607
+      AND b~matnr IN s_matnr
+      AND a~kunag IN s_kunag
+      AND a~vtweg IN s_vtweg     "EOC SHDK908607
+      AND a~fkart IN ( 'ZGST' , 'S1' )
+      AND a~kalsm EQ 'ZASTOP'
+    AND a~vbeln IN s_vbeln.
+  ENDIF.
+
+  IF tvbrkp[] IS NOT INITIAL.
+
+    DATA(tvbrkp1) = tvbrkp[].
+    DATA(tvbrkp2) = tvbrkp[].
+    SORT tvbrkp1 BY knumv.
+    SORT tvbrkp2 BY matnr werks.
+    DATA(tvbrkp3) = tvbrkp2[].
+    SORT tvbrkp3 BY werks.
+    DATA(ttvbrkg) = tvbrkp[].
+    SORT ttvbrkg BY wkreg.
+
+    DATA(tvbrkp4) = tvbrkp[].
+
+    SORT tvbrkp4 BY vbeln.
+
+    DELETE ADJACENT DUPLICATES FROM tvbrkp4 COMPARING vbeln.
+
+    IF tvbrkp4 IS NOT INITIAL.
+*      BoC Radhika SHDK913355
+* get payment term description
+      SELECT zterm, vtext INTO TABLE @DATA(it_zterm)
+        FROM tvzbt
+        FOR ALL ENTRIES IN @tvbrkp4
+        WHERE zterm = @tvbrkp4-zterm
+      AND spras = @sy-langu.
+
+* get cancelled invoices
+      SELECT sfakn , xblnr , fkdat FROM vbrk INTO TABLE @DATA(it_canc)
+        FOR ALL ENTRIES IN @tvbrkp4
+      WHERE sfakn = @tvbrkp4-vbeln+(10).
+
+*        Eoc SHDK913355
+      SELECT vbeln ,
+             a~kunnr,
+             b~stcd3                                        "SHDK913900
+            FROM vbpa AS a
+        INNER JOIN kna1 AS b ON a~kunnr = b~kunnr           "SHDK913900
+                      INTO TABLE @DATA(lt_vbpa)
+                      FOR ALL ENTRIES IN @tvbrkp4
+      WHERE vbeln = @tvbrkp4-vbeln+0(10) AND  parvw = 'WE'.
+
+      IF sy-subrc = 0.
+*select kunnr stcde into TABLE @DATA(it_ship)
+        SORT lt_vbpa BY vbeln.
+
+      ENDIF.
+*      Boc Radhika 4/7/2023 Customer Category  SHDK912623
+*      SELECT * FROM knvi
+*        INTO TABLE @DATA(it_knvi)
+*        FOR ALL ENTRIES IN @tvbrkp4
+*        WHERE kunnr = @tvbrkp4-kunrg
+*        AND aland = 'IN'.
+      SELECT * FROM tvarvc INTO TABLE @DATA(it_sezcust)
+      WHERE name = 'YSEZ_CUST'.
+      FIELD-SYMBOLS : <fs> TYPE tvarvc.
+      DATA : w_kunnr TYPE kna1-kunnr.
+
+      IF NOT it_sezcust[] IS INITIAL.
+        DELETE it_sezcust WHERE low IS INITIAL.
+
+        LOOP AT it_sezcust ASSIGNING  <fs> .
+          w_kunnr = <fs>-low.
+          CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+            EXPORTING
+              input  = w_kunnr
+            IMPORTING
+              output = w_kunnr.
+          <fs>-low = w_kunnr.
+        ENDLOOP.
+      ENDIF.
+*      EoC
+*     BoC Radhika     SHDK913355
+      SELECT vbeln,zirn,zirn_sts,zack_dt FROM zsdi_einvoice
+        FOR ALL ENTRIES IN @tvbrkp
+      WHERE vbeln = @tvbrkp-vbeln(10)
+      INTO TABLE @DATA(it_irn).
+
+*     EoC
+    ENDIF.
+
+    DELETE ADJACENT DUPLICATES FROM ttvbrkg COMPARING wkreg.
+    IF ttvbrkg IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT * FROM t005u
+        INTO TABLE @DATA(treg_data)
+        FOR ALL ENTRIES IN @ttvbrkg
+        WHERE bland = @ttvbrkg-wkreg
+      AND spras = 'E' AND land1 = 'IN'.
+    ENDIF.                        "" added Avinash S 2000003260
+    DELETE ADJACENT DUPLICATES FROM tvbrkp1 COMPARING knumv.
+    DELETE ADJACENT DUPLICATES FROM tvbrkp2 COMPARING matnr werks.
+    DELETE ADJACENT DUPLICATES FROM tvbrkp3 COMPARING werks.
+    IF tvbrkp1 IS NOT INITIAL.  "" added Avinash
+      SELECT bukrs belnr gjahr monat awkey xblnr
+             budat                                          "SHDK913355
+        FROM bkpf
+        INTO TABLE tbkpf
+        FOR ALL ENTRIES IN tvbrkp1
+        WHERE awkey = tvbrkp1-vbeln
+      AND awtyp = 'VBRK' .
+    ENDIF.                      "" added Avinash S 2000003260
+    IF tvbrkp3 IS NOT INITIAL.  "" added Avinash S 2000003260
+      SELECT a~werks,a~j_1bbranch,b~bukrs,b~branch,b~gstin
+        FROM t001w AS a
+        INNER JOIN j_1bbranch AS b
+        ON a~j_1bbranch = b~branch
+        INTO TABLE @DATA(tpgst)
+        FOR ALL ENTRIES IN @tvbrkp3
+        WHERE werks = @tvbrkp3-werks
+      AND   b~bukrs = @s_bukrs.       "#EC CI_BUFFJOIN "#EC CI_BUFFJOIN
+    ENDIF.                    "" added Avinash S 2000003260
+    IF tvbrkp1 IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT a~kunnr,a~adrnr,b~name1,b~name2,b~name3,b~region
+        FROM kna1 AS a
+        INNER JOIN adrc AS b
+        ON a~adrnr = b~addrnumber
+        INTO TABLE @DATA(tadrc)
+        FOR ALL ENTRIES IN @tvbrkp1
+      WHERE kunnr = @tvbrkp1-kunrg.
+    ENDIF.                    "" added Avinash S 2000003260
+    IF tadrc IS NOT INITIAL.  "" added Avinash S 2000003260
+      SELECT * FROM t005u
+        INTO TABLE @DATA(tt005u)
+        FOR ALL ENTRIES IN @tadrc
+        WHERE bland = @tadrc-region
+      AND spras = 'E'. "#EC CI_NO_TRANSFORM "#EC CI_GENBUFF  "#EC CI_ALL_FIELDS_NEEDED
+*    AND spras = 'E' AND land1 = 'IN'.
+    ENDIF.                   "" added Avinash S 2000003260
+    IF tvbrkp1 IS NOT INITIAL.  "" added Avinash S 2000003260
+      SELECT partner,bpext FROM but000
+        INTO TABLE @DATA(tbut000)
+        FOR ALL ENTRIES IN @tvbrkp1
+      WHERE partner =  @tvbrkp1-kunrg.
+    ENDIF.                    "" added Avinash S 2000003260
+    IF tvbrkp2 IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT matnr,werks,steuc
+        FROM marc
+        INTO TABLE @DATA(tmarc)
+        FOR ALL ENTRIES IN @tvbrkp2
+        WHERE matnr = @tvbrkp2-matnr
+      AND   werks = @tvbrkp2-werks.
+    ENDIF.                "" added Avinash S 2000003260
+
+    SELECT * FROM ser01                            "#EC CI_NO_TRANSFORM
+    INTO TABLE tser01
+    FOR ALL ENTRIES IN tvbrkp
+    WHERE lief_nr = tvbrkp-vgbel.
+
+    IF tser01 IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT * FROM objk                           "#EC CI_NO_TRANSFORM
+        INTO TABLE tobjk
+        FOR ALL ENTRIES IN tser01
+      WHERE obknr = tser01-obknr.             "#EC CI_ALL_FIELDS_NEEDED
+    ENDIF.                   "" added Avinash S 2000003260
+    IF tvbrkp1 IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT knumv,kposn,kschl,kbetr,mwsk1,kpein,kwert,kinak "#EC CI_NOFIELD.
+        FROM prcd_elements
+        INTO TABLE @DATA(tprcd)
+        FOR ALL ENTRIES IN @tvbrkp1
+        WHERE knumv = @tvbrkp1-knumv
+      AND kschl IN ('PR00','ZACD','JOSG','JOCG','JOIG','ZAFS','ZSPR','ZPR0','ZARD','ZLIH','ZASS', 'ZVOR', 'ZSCP', 'ZAGD', 'ZAMD', 'ZSRP', 'ZAPD',
+      'ZEMP', 'ZPDS','ZAIE','ZADR').
+    ENDIF.                      "" added Avinash S 2000003260
+    SORT tprcd BY knumv kposn kschl ASCENDING.
+
+    DELETE tprcd WHERE kinak <> space."exclude inactive data
+    IF tprcd IS NOT INITIAL.   "" added Avinash S 2000003260
+      SELECT * FROM t007s
+        INTO TABLE @DATA(tt007s)
+        FOR ALL ENTRIES IN @tprcd
+        WHERE spras = 'E' AND
+      kalsm = 'ZTAXIN' AND
+      mwskz = @tprcd-mwsk1.                             "#EC CI_NOORDER
+    ENDIF.                    "" added Avinash S 2000003260
+
+    SELECT * FROM vbfa             "#EC CI_NO_TRANSFORM "#EC CI_NOFIELD
+      INTO TABLE tvbfa
+      FOR ALL ENTRIES IN  tvbrkp
+      WHERE vbeln = tvbrkp-vbeln+0(10)
+    AND vbtyp_v = 'M'.
+
+    "BOC on 27.04.2023 hana-5726
+    IF tvbfa IS NOT INITIAL. "" added Avinash S 2000003260
+      SELECT * FROM vbrk INTO TABLE it_vbrk "#EC CI_NO_TRANSFORM    "For other than S1 docs
+         FOR ALL ENTRIES IN tvbfa
+      WHERE vbeln = tvbfa-vbelv.              "#EC CI_ALL_FIELDS_NEEDED
+
+      SELECT * FROM vbrk INTO TABLE it_vbrk1 "#EC CI_NO_TRANSFORM     "For S1 docs
+                    FOR ALL ENTRIES IN tvbfa
+      WHERE sfakn = tvbfa-vbelv.              "#EC CI_ALL_FIELDS_NEEDED
+    ENDIF.                 "" added Avinash S 2000003260
+    "EOC on 27.04.2023 hana-5726
+
+    MOVE-CORRESPONDING tvbrkp TO it_vbrkptmp.
+
+    SELECT * FROM vbap INTO TABLE it_vbap     "#EC CI_ALL_FIELDS_NEEDED
+      FOR ALL ENTRIES IN tvbrkp
+    WHERE vbeln = tvbrkp-aubel. "#EC CI_NO_TRANSFORM "#EC CI_ALL_FIELDS_NEEDED
+
+    SELECT * FROM bseg INTO TABLE it_bseg
+            FOR ALL ENTRIES IN it_vbrkptmp
+    WHERE vbeln = it_vbrkptmp-vbeln. "#EC CI_NOFIELD  "#EC CI_FAE_LINES_ENSURED
+
+    DELETE it_bseg WHERE augbl IS INITIAL AND augdt IS INITIAL.
+
+    IF it_bseg[] IS NOT INITIAL.
+      SELECT * FROM bseg INTO TABLE it_bseg1
+          FOR ALL ENTRIES IN it_bseg
+          WHERE augbl = it_bseg-augbl
+            AND augdt = it_bseg-augdt
+      AND h_blart = 'DZ'.                               "#EC CI_NOFIELD
+
+      IF it_bseg1[] IS NOT INITIAL.
+
+        SELECT * FROM bseg INTO TABLE it_bseg2 "#EC CI_ALL_FIELDS_NEEDED
+            FOR ALL ENTRIES IN it_bseg1
+            WHERE belnr = it_bseg1-belnr
+        AND gjahr = it_bseg1-gjahr. "#EC CI_NO_TRANSFORM "#EC CI_ALL_FIELDS_NEEDED
+      ENDIF.
+    ENDIF.
+
+    SELECT * FROM jest
+       INTO TABLE it_jest
+       FOR ALL ENTRIES IN it_vbrkptmp
+       WHERE objnr = it_vbrkptmp-objnr
+    AND stat = 'E0001'.                       "#EC CI_FAE_LINES_ENSURED
+
+    IF sy-subrc = 0.
+
+      SORT it_jest BY objnr.
+      IF it_jest IS NOT INITIAL.  "" added Avinash S 2000003260
+        SELECT * FROM jcds INTO TABLE it_jcds
+                           FOR ALL ENTRIES IN it_jest
+                           WHERE objnr = it_jest-objnr
+                           AND stat  = 'E0001'
+        AND inact = 'X'.
+        IF sy-subrc = 0.
+
+          SORT it_jcds BY objnr udate DESCENDING utime DESCENDING .
+
+        ENDIF.
+      ENDIF.      "" added Avinash S 2000003260
+    ENDIF.
+
+
+    " Boc "Added by vamsi SHDK923129 code optimization
+    SELECT * FROM tvakt INTO TABLE it_tvakt
+        FOR ALL ENTRIES IN it_vbrkptmp
+          WHERE auart = it_vbrkptmp-auart
+    AND spras = 'E'.                          "#EC CI_FAE_LINES_ENSURED
+
+    SELECT werks, name1 FROM t001w INTO TABLE @DATA(it_t001w)
+       FOR ALL ENTRIES IN @tvbrkp
+    WHERE werks = @tvbrkp-werks.
+
+    SELECT fkart,vtext FROM tvfkt INTO TABLE @DATA(it_tvfkt)
+       FOR ALL ENTRIES IN @tvbrkp
+    WHERE  fkart = @tvbrkp-fkart AND spras = 'E'.
+
+    SELECT matnr,mtart FROM mara INTO TABLE @DATA(it_mara)
+      FOR ALL ENTRIES IN @tvbrkp
+    WHERE matnr = @tvbrkp-matnr.                   "#EC CI_NO_TRANSFORM
+
+    it_dd07t = VALUE #( FOR field1 IN tvbrkp (  domvalue_l = field1-vbtyp  ) ) .
+    "eoc
+    DATA : w_rate_temp LIKE prcd_elements-kbetr,
+           w_vorrate   LIKE prcd_elements-kbetr.
+    DATA : wtotal_cgst   TYPE kbetr,
+           wtotal_sgst   TYPE kbetr,
+           wtotal_igst   TYPE kbetr
+           , modify_taxval TYPE c.
+    DATA client           TYPE sy-mandt.
+    DATA id               TYPE thead-tdid.
+    DATA language         TYPE thead-tdspras.
+    DATA name             TYPE thead-tdname.
+    DATA object           TYPE thead-tdobject.
+    DATA archive_handle   TYPE sy-tabix.
+    DATA header           TYPE thead.
+    DATA old_line_counter TYPE thead-tdtxtlines.
+    DATA lines            TYPE STANDARD TABLE OF tline.
+    DATA : tot TYPE dmbtr.      "Radhika 11/01
+    SORT tvbrkp BY vbeln posnr. "Radhika 19/10
+
+    "BOC SHDK923129 Vamsi 25.09.25
+    DATA: it_zhistory_card TYPE TABLE OF zhistory_card.
+
+    SELECT ddtext, ddlanguage, domvalue_l, domname, as4local, valpos, as4vers FROM dd07t INTO TABLE @DATA(it_dd07t2)
+        WHERE ddlanguage = @sy-langu AND
+    domname    = 'VBTYP'.
+
+    IF tvbrkp IS NOT INITIAL.
+      SELECT vbeln, xblnr, fkdat FROM vbrk INTO TABLE @DATA(it_vbrk_new)
+        FOR ALL ENTRIES IN @tvbrkp
+      WHERE xblnr = @tvbrkp-bstnk+0(16).
+
+      "boc added by vamsi SHDK923129
+      SELECT matnr, sernr, serge
+        FROM equi INTO TABLE @DATA(it_equi)
+        FOR ALL ENTRIES IN @tvbrkp
+      WHERE matnr = @tvbrkp-matnr.
+      "eoc vamsi
+    ENDIF.
+
+    SELECT vin, motor, color FROM zhistory_card INTO TABLE @it_zhistory_card. "#EC CI_NOWHERE
+    "EOC SHDK923129 Vamsi 25.09.25
+
+
+
+    LOOP AT tvbrkp INTO DATA(wvbrkp).
+*      BoC 28-08-2023   SHDK913355
+      IF wvbrkp-fkart = 'ZAEX'.
+*        wfnl-ship_billno = wvbrkp-xblnr.
+*        wfnl-ship_billdate = wvbrkp-fkdat.
+*        wfnl-port = 'INADA6'.
+        MOVE 'B2B' TO wfnl-b2b_b2c.
+      ELSEIF wvbrkp-stcd3 IS NOT INITIAL.
+        MOVE 'B2B' TO wfnl-b2b_b2c.
+      ELSEIF wvbrkp-stcd3 IS INITIAL.
+        MOVE 'B2C' TO wfnl-b2b_b2c.
+      ENDIF.
+
+      "BOC SHDK923129 Vamsi 25.09.25
+*        SELECT SINGLE ddtext
+*          FROM dd07t
+*          INTO wfnl-doc_type
+*          WHERE ddlanguage = sy-langu
+*            AND domvalue_l = wvbrkp-vbtyp
+*            AND domname = 'VBTYP'.
+
+      READ TABLE it_dd07t2 INTO DATA(wa_dd07t2) WITH KEY ddlanguage = sy-langu domvalue_l = wvbrkp-vbtyp domname = 'VBTYP'.
+      IF sy-subrc = 0.
+        wfnl-doc_type = wa_dd07t2-ddtext.
+      ENDIF.
+      "EOC SHDK923129 Vamsi 25.09.25
+
+      IF wfnl-doc_type = 'Invoice'.
+        wfnl-doc_type = 'INV'.
+      ENDIF.
+
+      IF wfnl-doc_type = 'Invoice canceled'.
+        wfnl-doc_type = 'INV CAN'.
+      ENDIF.
+
+      IF wvbrkp-vbtyp = 'O'.  " when credit memo canceled
+*        MOVE 'Credit Note' TO wfnl-doc_type.
+        MOVE 'CN' TO wfnl-doc_type.
+      ENDIF.
+
+      READ TABLE it_canc INTO DATA(wa_canc) WITH KEY sfakn = wvbrkp-vbeln.
+      IF sy-subrc = 0.
+*        MOVE 'Invoice Canceled' TO wfnl-doc_type.
+        MOVE 'INV CAN ' TO wfnl-doc_type.
+        wfnl-ori_invno = wa_canc-xblnr.
+        wfnl-ori_invdt = wa_canc-fkdat.
+      ENDIF.
+      IF wvbrkp-vbtyp = 'S'.  " when credit memo canceled
+*        MOVE 'Invoice Canceled' TO wfnl-doc_type.
+        MOVE 'INV CAN' TO wfnl-doc_type.
+      ENDIF.
+
+      READ TABLE tbkpf INTO DATA(wbkpf1) WITH KEY awkey = wvbrkp-vbeln.
+      IF sy-subrc = 0.
+        MOVE wbkpf1-budat TO wfnl-posting_date.
+        wfnl-ret_per = |{ wbkpf1-monat }/{ wbkpf1-gjahr }|.
+      ENDIF.
+*If Customer-LAND1 <> IN then display EXPORT ELSE check customer is maintained in TVARVC for variant YSEZ_CUST then display SEZ
+*      ELSE check Customer -STCD3 maintained then display B2B ELSE display B2C
+      IF wvbrkp-land1 <> 'IN'.
+        MOVE 'EXPORT' TO wfnl-supply_type.
+      ELSE.
+        READ TABLE it_sezcust INTO DATA(wa_sezcust1) WITH KEY low = wvbrkp-kunrg.
+        IF sy-subrc = 0.
+          MOVE 'SEZ' TO wfnl-supply_type.
+        ELSE.
+          IF wvbrkp-stcd3 IS NOT INITIAL.
+            MOVE 'B2B' TO wfnl-supply_type.
+          ELSE.
+            MOVE 'B2C' TO wfnl-supply_type.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      READ TABLE it_irn INTO DATA(wa_irn) WITH KEY vbeln = wvbrkp-vbeln.
+      IF sy-subrc = 0.
+        MOVE wa_irn-zirn TO wfnl-irn_num.
+        MOVE wa_irn-zirn_sts TO wfnl-irn_status.
+        CONCATENATE wa_irn-zack_dt+6(2) wa_irn-zack_dt+4(2) wa_irn-zack_dt+0(4) INTO wfnl-irn_date SEPARATED BY '.'.
+      ENDIF.
+      READ TABLE it_zterm INTO DATA(wa_zterm) WITH KEY zterm = wvbrkp-zterm.
+      IF sy-subrc = 0.
+        MOVE wa_zterm-vtext TO wfnl-vtext_zterm.
+      ENDIF.
+*      Eoc
+**--Added By Amit R On 20.04.2021
+
+      id = 'Z01'.
+      language = 'EN'.
+      name = wvbrkp-vbeln.
+      object = 'VBBK'.
+
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          client                  = sy-mandt
+          id                      = id
+          language                = language
+          name                    = name
+          object                  = object
+        TABLES
+          lines                   = lines
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+      READ TABLE lines INTO DATA(wa_lines) INDEX 1.
+      wfnl-pod_dat = wa_lines-tdline.
+
+**--EOA
+
+***--Added By Amit R On 21.01.2021
+*      SELECT SINGLE name1 FROM t001w INTO wfnl-plant_des WHERE werks = wvbrkp-werks.
+***--EOA
+      " vamsi
+      READ TABLE it_t001w INTO DATA(wa_t001w) WITH KEY werks = wvbrkp-werks.
+      wfnl-plant_des  = wa_t001w-name1.
+
+      MOVE-CORRESPONDING wvbrkp TO wfnl.
+      READ TABLE treg_data INTO DATA(wreg_data) WITH KEY bland = wvbrkp-wkreg.
+*                                                         land1 = wvbrkp-land1.
+      IF sy-subrc EQ 0.
+        wfnl-reg_del_desc = wreg_data-bezei.
+      ENDIF.
+      READ TABLE tvbfa INTO wvbfa WITH KEY vbeln = wvbrkp-vbeln posnn = wvbrkp-posnr.
+      IF sy-subrc EQ 0.
+        wfnl-zuonr = wvbfa-vbelv.
+*        CLEAR : wvbfa.
+
+        "BOC 27.04.2023
+
+*        READ TABLE it_vbrk1 INTO wa_vbrk1 WITH KEY sfakn = wvbfa-vbelv.
+*        IF sy-subrc = 0 .
+*          IF wa_vbrk-fkart = 'S1'.
+*            "Do Nothing, Original Inv no field should be blank
+*
+*          ENDIF.
+*
+*        ELSE.
+        READ TABLE it_vbrk INTO wa_vbrk WITH KEY vbeln = wvbfa-vbelv.
+        wfnl-ori_invno = wa_vbrk-xblnr.
+        wfnl-ori_invdt = wa_vbrk-fkdat.
+
+*        ENDIF.
+        "EOC 27.04.2023
+        CLEAR : wvbfa.
+      ELSE.
+
+      ENDIF.
+*  BoC BSOFT-51836
+
+      IF wvbrkp-fkart = 'ZRWR' AND wvbrkp-vkorg = '2000'.
+        wfnl-ori_invno = wvbrkp-bstnk.
+
+        "BOC SHDK923129 Vamsi 25.09.25
+*        SELECT SINGLE fkdat INTO wfnl-ori_invdt FROM vbrk WHERE xblnr = wfnl-ori_invno.
+
+        READ TABLE it_vbrk_new INTO DATA(wa_vbrk_new) WITH KEY xblnr = wfnl-ori_invno.
+        IF sy-subrc = 0.
+          wfnl-ori_invdt = wa_vbrk_new-fkdat.
+        ENDIF.
+        "EOC SHDK923129 Vamsi 25.09.25
+
+      ENDIF.
+*   EoC
+      READ TABLE it_vbap INTO wa_vbap WITH KEY vbeln = wvbrkp-aubel
+                                               posnr = wvbrkp-aupos.
+      IF sy-subrc = 0.
+        wfnl-soqty = wa_vbap-kwmeng.
+      ENDIF.
+
+      READ TABLE it_bseg INTO wa_bseg WITH KEY vbeln = wvbrkp-vbeln.
+
+      IF sy-subrc = 0.
+*        wfnl-ret_per = |{ wa_bseg-h_monat }/{ wa_bseg-gjahr }|.
+        READ TABLE it_bseg1 INTO wa_bseg1 WITH KEY augbl = wa_bseg-augbl augdt = wa_bseg-augdt.
+        IF sy-subrc = 0.
+          READ TABLE it_bseg2 INTO wa_bseg2 WITH KEY belnr = wa_bseg1-belnr gjahr = wa_bseg1-gjahr.
+          IF sy-subrc = 0.
+
+            wfnl-ret_per = |{ wa_bseg2-h_monat }/{ wa_bseg2-gjahr }|.
+            wfnl-paydocdt = wa_bseg2-h_budat.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      READ TABLE it_jest INTO wa_jest WITH KEY objnr = wvbrkp-objnr .
+      READ TABLE it_jcds INTO wa_jcds WITH KEY objnr = wa_jest-objnr .
+
+      IF sy-subrc = 0.
+        wfnl-udate = wa_jcds-udate .
+      ENDIF.
+
+      READ TABLE it_tvakt INTO wa_tvakt WITH KEY auart = wvbrkp-auart.
+      IF sy-subrc = 0.
+        wfnl-sotypdesc = wa_tvakt-bezei.
+      ENDIF.
+
+      val = wvbrkp-aupos.
+
+      READ TABLE tbkpf INTO DATA(wbkpf) WITH KEY awkey = wvbrkp-vbeln.
+      IF sy-subrc EQ 0.
+        wfnl-xblnr  = wbkpf-xblnr.
+        wfnl-belnr  = wbkpf-belnr.
+      ENDIF.
+      READ TABLE tpgst INTO DATA(wpgst) WITH KEY werks = wvbrkp-werks.
+      IF sy-subrc EQ 0.
+        wfnl-gstin = wpgst-gstin.
+      ENDIF.
+
+      READ TABLE tadrc INTO DATA(wadrc) WITH KEY kunnr = wvbrkp-kunrg.
+      IF sy-subrc EQ 0.
+        CONCATENATE wadrc-name1 wadrc-name2 wadrc-name3 INTO wfnl-name SEPARATED BY space.
+        wfnl-region = wadrc-region.
+        READ TABLE tt005u INTO DATA(wt005u) WITH KEY bland = wadrc-region
+                                                     land1 = wvbrkp-land1.
+        IF sy-subrc EQ 0.
+          wfnl-reg_desc = wt005u-bezei.
+* Begin of changes by AE2926
+*          wfnl-state_desc = wt005u-bezei+3.
+          wfnl-state_desc = wt005u-bezei.
+* End of changes by AE2926
+        ENDIF.
+      ENDIF.
+
+      READ TABLE tbut000 INTO DATA(wbut000) WITH KEY partner = wvbrkp-kunrg.
+      IF sy-subrc EQ 0.
+        wfnl-bpext = wbut000-bpext.
+      ENDIF.
+
+      READ TABLE tmarc INTO DATA(wmarc) WITH KEY matnr = wvbrkp-matnr
+                                                 werks = wvbrkp-werks.
+      IF sy-subrc EQ 0.
+        wfnl-steuc = wmarc-steuc.
+      ENDIF.
+* BoC Price table to be looped instead read AS there can be multiple price maintained against same condition
+*      all to be accumulated.
+      LOOP AT tprcd INTO DATA(wprcd) WHERE knumv = wvbrkp-knumv AND
+                                                 kposn = wvbrkp-posnr.
+* Base price
+        IF wprcd-kschl = 'PR00' OR wprcd-kschl = 'ZPR0' OR wprcd-kschl = 'ZSPR' OR wprcd-kschl = 'ZSCP'.
+          IF NOT wprcd-kbetr IS INITIAL.
+            wfnl-rate = wprcd-kbetr." / WPRCD-KPEIN ).
+            wfnl-mwsk1 = wprcd-mwsk1.
+            tot = tot + ( wfnl-rate * wfnl-fkimg ).
+          ENDIF.
+        ENDIF.
+
+        IF  wprcd-kschl = 'ZVOR'.
+          w_rate_temp = wfnl-rate.
+          w_vorrate = ( wfnl-rate * wprcd-kbetr ) / 100.
+          wfnl-rate = w_rate_temp + w_vorrate.
+          tot = wfnl-rate * wfnl-fkimg .
+          CLEAR : w_vorrate, w_rate_temp.
+        ENDIF.
+*       Pre GST Discount
+        IF wprcd-kschl = 'ZACD' OR wprcd-kschl = 'ZARD' OR wprcd-kschl = 'ZADR'.
+          wfnl-discount = wfnl-discount + wprcd-kbetr.
+        ENDIF.
+        IF wprcd-kschl = 'ZAMD'.
+          wfnl-discount = wfnl-discount + wprcd-kwert.
+        ENDIF.
+        IF wprcd-kschl = 'ZAPD'.
+          wfnl-discount = wfnl-discount + wprcd-kwert.
+        ENDIF.
+
+        IF wprcd-kschl = 'ZLIH'.
+
+          wfnl-handling = wfnl-handling + ( wprcd-kbetr * wfnl-fkimg ).
+
+        ENDIF.
+*      BoC Post GST Discount 04/8/2023
+        IF wprcd-kschl = 'ZAGD'.
+
+          wfnl-post_gst = wfnl-post_gst + wprcd-kwert.
+
+        ENDIF.
+*      EoC
+        IF wprcd-kschl = 'ZSRP'.
+          wfnl-tcs_value = wfnl-tcs_value + wprcd-kwert.
+          IF NOT wprcd-kbetr IS  INITIAL.
+            wfnl-tcs_rate = wprcd-kbetr." / WPRCD2-KPEIN ).
+          ENDIF.
+*          wfnl-tcs = 'YES'.
+          wfnl-tcs = 'Y'.
+        ENDIF.
+        IF wprcd-kschl = 'ZAFS'.
+          wfnl-fame_sub = wfnl-fame_sub + ( wprcd-kbetr  * wfnl-fkimg ).
+        ENDIF.
+        IF wprcd-kschl = 'ZASS'.
+          wfnl-ssub = wfnl-ssub + ( wprcd-kbetr * wfnl-fkimg ).
+        ENDIF.
+*        BoC "BSOFT-29474
+        IF wprcd-kschl = 'ZEMP'.
+          wfnl-emps_subs = wfnl-emps_subs + wprcd-kwert.
+        ENDIF.
+*        EoC
+*       BoC 2000002713: PM Drive Subsidy BSOFT-39295
+        IF wprcd-kschl = 'ZPDS'.
+          wfnl-zpds = wfnl-zpds + wprcd-kwert.
+        ENDIF.
+*       EoC
+        CLEAR wprcd.
+      ENDLOOP.
+      IF wfnl-tcs_value IS INITIAL.
+*        wfnl-tcs = 'NO'.
+        wfnl-tcs = 'N'.
+      ENDIF.
+*        BoC "BSOFT-29474
+      IF wvbrkp-fkdat GT '20240331'.
+        IF wfnl-emps_subs IS INITIAL.
+          wfnl-emps_subs = wfnl-fame_sub.
+        ELSE.
+          wfnl-fame_sub = wfnl-emps_subs.
+        ENDIF.
+
+      ENDIF.
+      IF wvbrkp-fkdat BETWEEN '20240401' AND '20240418'.
+        wfnl-aps  = wfnl-post_gst.
+      ENDIF.
+* EoC
+      READ TABLE tprcd INTO DATA(wprcd0) WITH KEY knumv = wvbrkp-knumv
+                                           kposn = wvbrkp-posnr
+                                           kschl = 'ZAIE'.
+      IF sy-subrc = 0.
+        wfnl-kwert = wprcd0-kwert.
+        CLEAR wprcd0.
+      ENDIF.
+      READ TABLE tprcd INTO DATA(wprcd2) WITH KEY knumv = wvbrkp-knumv
+                                           kposn = wvbrkp-posnr
+                                           kschl = 'JOSG'.
+      IF sy-subrc = 0.
+        wfnl-sgst = wprcd2-kwert.
+        wfnl-psgst = wprcd2-kbetr." / WPRCD2-KPEIN ).
+        CLEAR wprcd2.
+      ENDIF.
+      READ TABLE tprcd INTO DATA(wprcd3) WITH KEY knumv = wvbrkp-knumv
+                                           kposn = wvbrkp-posnr
+                                           kschl = 'JOCG'.
+      IF sy-subrc = 0.
+        wfnl-cgst = wprcd3-kwert.
+        wfnl-pcgst = wprcd3-kbetr." / WPRCD3-KPEIN ).
+        CLEAR wprcd3.
+      ENDIF.
+      READ TABLE tprcd INTO DATA(wprcd4) WITH KEY knumv = wvbrkp-knumv
+                                           kposn = wvbrkp-posnr
+                                           kschl = 'JOIG'.
+      IF sy-subrc = 0.
+        wfnl-igst = wprcd4-kwert.
+        wfnl-pigst = wprcd4-kbetr." / WPRCD4-KPEIN ).
+        CLEAR wprcd.
+      ENDIF.
+
+* BoC SHDK913900
+      wtotal_cgst = wtotal_cgst + wfnl-cgst.
+      wtotal_sgst = wtotal_sgst + wfnl-sgst.
+      wtotal_igst = wtotal_igst + wfnl-igst.
+* EoC
+*      DATA(tot) = wfnl-rate * wfnl-fkimg.
+
+*      wfnl-tot_amt = ( ( tot + wfnl-discount ) + wfnl-fame_sub + wfnl-ssub ) + wfnl-cgst + wfnl-sgst + wfnl-igst + wfnl-handling.
+      wfnl-tot_amt = ( ( tot + wfnl-discount ) + wfnl-fame_sub + wfnl-ssub + wfnl-post_gst + wfnl-zpds ) + wfnl-cgst + wfnl-sgst + wfnl-igst + wfnl-handling + wfnl-kwert.
+
+      wfnl-taxable_amnt = ( tot + wfnl-discount +  wfnl-handling ). "SHDK913355
+      wfnl-total_tax    = wfnl-cgst + wfnl-sgst + wfnl-igst. "SHDK913355
+      wfnl-invamt_tcs = wfnl-taxable_amnt + wfnl-cgst + wfnl-sgst + wfnl-igst + wfnl-tcs_value.
+***************************
+      READ TABLE tser01 INTO wser01 WITH KEY lief_nr = wvbrkp-vgbel
+                                             posnr = wvbrkp-vgpos.
+      IF sy-subrc EQ 0.
+        LOOP AT tobjk INTO wobjk WHERE obknr = wser01-obknr.
+          " boc commented by vamsi
+*          CALL FUNCTION 'DPWTY_SERIAL_NUMBER_EQUI_GET'
+*            EXPORTING
+**             iv_material     = wvbrkp-matnr "Commented By Amit R On 02.04.2021
+*              iv_material     = wobjk-matnr  "Added By Amit R On 02.04.2021
+*              iv_serialnumber = wobjk-sernr
+*            IMPORTING
+*              es_itob         = es_itob.
+          READ TABLE it_equi INTO DATA(wa_equi) WITH KEY matnr = wvbrkp-matnr
+                                                         sernr = wobjk-sernr. "added by vamsi SHDK923129
+
+          " eoc vamsi
+
+          SHIFT wobjk-sernr LEFT DELETING LEADING '0'.
+          CONCATENATE wobjk-sernr wfnl-sernr INTO wfnl-sernr SEPARATED BY ','.
+*          WFNL-SERNR = WOBJK-SERNR.
+
+
+          "BOC SHDK923129 Vamsi 25.09.25
+*          SELECT SINGLE * FROM zhistory_card INTO wa_zhistory_card WHERE vin = es_itob-manserno.
+
+          READ TABLE it_zhistory_card  INTO wa_zhistory_card WITH KEY vin = wa_equi-serge.
+*          READ TABLE it_zhistory_card  INTO wa_zhistory_card WITH KEY vin = es_itob-manserno.
+          "EOC SHDK923129 Vamsi 25.09.25
+
+          IF wa_zhistory_card-vin IS NOT INITIAL.
+            CONCATENATE wa_zhistory_card-vin wfnl-vin INTO wfnl-vin SEPARATED BY ','.
+          ENDIF.
+          IF wa_zhistory_card-motor IS NOT INITIAL.
+            CONCATENATE wa_zhistory_card-motor wfnl-motor INTO wfnl-motor SEPARATED BY  ','.
+          ENDIF.
+          IF wa_zhistory_card-color IS NOT INITIAL.
+            CONCATENATE  wa_zhistory_card-color wfnl-color INTO wfnl-color SEPARATED BY ','.
+          ENDIF.
+          CLEAR : wobjk,es_itob,wa_zhistory_card.
+        ENDLOOP.
+      ENDIF.
+      READ TABLE tt007s INTO DATA(wt007s) WITH KEY mwskz = wfnl-mwsk1.
+      IF sy-subrc EQ 0.
+        wfnl-text1 = wt007s-text1.
+      ENDIF.
+
+      wfnl-qty_prc = wfnl-fkimg * wfnl-rate.
+      IF wvbrkp-vbtyp = 'N' OR wvbrkp-fkart = 'ZARE'.
+        wfnl-fkimg        = - ( wfnl-fkimg ).
+        wfnl-qty_prc      = - ( wfnl-qty_prc ).
+        wfnl-rate         = - ( wfnl-rate ).
+        wfnl-discount     = - ( wfnl-discount ).
+        wfnl-sgst         = - ( wfnl-sgst ).
+        wfnl-cgst         = - ( wfnl-cgst ).
+        wfnl-igst         = - ( wfnl-igst ).
+        wfnl-fame_sub     = - ( wfnl-fame_sub ).
+        wfnl-emps_subs     = - ( wfnl-emps_subs ).   "BSOFT-29474
+        wfnl-zpds         = - ( wfnl-zpds ).   " BSOFT-39295
+        wfnl-ssub         = - ( wfnl-ssub ).
+*        wfnl-post_gst     = - ( wfnl-post_gst ).
+        wfnl-tot_amt      = - ( wfnl-tot_amt ).
+        wfnl-taxable_amnt = - ( wfnl-taxable_amnt ).        "SHDK913355
+        wfnl-total_tax    = - ( wfnl-total_tax ).           "SHDK913355
+        wfnl-pqty         = - ( wfnl-pqty ).
+        wfnl-handling     = - ( wfnl-handling ).      "+RA22042022
+        wfnl-tcs_value    = - ( wfnl-tcs_value ).
+        wfnl-invamt_tcs   = - ( wfnl-invamt_tcs ).
+      ENDIF.
+* is correct but the + should come for ZAGD condition type for ZRV and ZARN
+**--Added By Amit R On 29.06.2021
+*      IF wvbrkp-fkart = 'ZARV' OR wvbrkp-fkart = 'ZDRT'  "Begin of Comment on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+*        OR wvbrkp-fkart = 'ZARN'
+*        OR wvbrkp-fkart = 'ZARC'
+*        OR wvbrkp-fkart = 'ZARM' "SHDK909485.
+*        OR wvbrkp-fkart = 'ZDRM'.                           "SHDK912751
+      "End Of Comment on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+      IF wvbrkp-vbtyp = 'O'.                              "Added on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+        wfnl-fkimg        = - ( wfnl-fkimg )."
+        wfnl-qty_prc      = - ( wfnl-qty_prc )."
+        wfnl-rate         = - ( wfnl-rate )."
+        wfnl-discount     = - ( wfnl-discount ).
+        wfnl-sgst         = - ( wfnl-sgst )."
+        wfnl-cgst         = - ( wfnl-cgst )."
+        wfnl-igst         = - ( wfnl-igst )."
+        wfnl-fame_sub     = - ( wfnl-fame_sub ).
+        wfnl-emps_subs     = - ( wfnl-emps_subs ).         "BSOFT-29474
+        wfnl-zpds         = - ( wfnl-zpds ).    " BSOFT-39295
+        wfnl-ssub         = - ( wfnl-ssub ).
+        wfnl-post_gst     = - ( wfnl-post_gst ). "Post GST discount
+        wfnl-aps          = - ( wfnl-aps ).                 "BSOFT-29474
+        wfnl-tot_amt      = - ( wfnl-tot_amt )."
+        wfnl-taxable_amnt = - ( wfnl-taxable_amnt ).        "SHDK913355
+        wfnl-total_tax    = - ( wfnl-total_tax ).       ""SHDK913355
+        wfnl-handling     = - ( wfnl-handling ).
+        wfnl-tcs_value    = - ( wfnl-tcs_value ).
+        wfnl-invamt_tcs   = - ( wfnl-invamt_tcs ).
+      ENDIF.
+
+**--EOA
+
+**** ADDED BY MS on 01.02.2022
+
+      READ TABLE lt_vbpa ASSIGNING FIELD-SYMBOL(<lfs_vbpa>) WITH KEY vbeln = wvbrkp-vbeln BINARY SEARCH.
+
+      IF sy-subrc = 0.
+
+        wfnl-kunnr = <lfs_vbpa>-kunnr.
+        wfnl-gst_shipto = <lfs_vbpa>-stcd3.
+      ENDIF.
+
+****Added By Amit R on 01.07.2020
+*      SELECT SINGLE vtext FROM tvfkt INTO wfnl-vtext WHERE fkart = wvbrkp-fkart AND spras = 'E'.
+****EOA
+      " vamsi
+      READ TABLE it_tvfkt INTO DATA(wa_tvfkt) WITH KEY fkart = wvbrkp-fkart.
+      wfnl-vtext = wa_tvfkt-vtext.
+
+*     BoC Radhika 4/7/2023
+      READ TABLE it_sezcust INTO DATA(wa_sezcust) WITH KEY low = wvbrkp-kunrg.
+      IF sy-subrc = 0.
+        MOVE 'SEZ Customer' TO wfnl-cust_cat ##NO_TEXT.
+      ENDIF.
+*     EoC
+*      BoC SHDK913900
+*      get shipping bill/date/port
+*      Shipping bill number
+      language = 'EN'.
+      name = wvbrkp-vbeln.
+      object = 'VBBK'.
+
+      id = 'Z28'.
+      REFRESH lines[].
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          client                  = sy-mandt
+          id                      = id
+          language                = language
+          name                    = name
+          object                  = object
+        TABLES
+          lines                   = lines
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+      LOOP AT lines INTO DATA(wlines).
+        IF NOT wfnl-ship_billno IS INITIAL.
+          CONCATENATE wfnl-ship_billno wlines-tdline INTO wfnl-ship_billno SEPARATED BY ','.
+        ELSE.
+          MOVE wlines-tdline TO wfnl-ship_billno.
+        ENDIF.
+      ENDLOOP.
+
+      id = 'Z29'.
+      REFRESH lines[].
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          client                  = sy-mandt
+          id                      = id
+          language                = language
+          name                    = name
+          object                  = object
+        TABLES
+          lines                   = lines
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+      LOOP AT lines INTO DATA(wlines1).
+        IF NOT wfnl-ship_billdate IS INITIAL.
+          CONCATENATE wfnl-ship_billdate wlines1-tdline INTO wfnl-ship_billdate SEPARATED BY ','.
+        ELSE.
+          MOVE wlines1-tdline TO wfnl-ship_billdate.
+        ENDIF.
+      ENDLOOP.
+
+      id = 'Z30'.
+      REFRESH lines[].
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          client                  = sy-mandt
+          id                      = id
+          language                = language
+          name                    = name
+          object                  = object
+        TABLES
+          lines                   = lines
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+      LOOP AT lines INTO DATA(wlines2).
+        IF NOT wfnl-port IS INITIAL.
+          CONCATENATE wfnl-port wlines2-tdline INTO wfnl-port SEPARATED BY ','.
+        ELSE.
+          MOVE wlines2-tdline TO wfnl-port.
+        ENDIF.
+      ENDLOOP.
+*EoC
+*       BoC "BSOFT-29474
+      IF wvbrkp-fkdat GT '20240331'.
+        CLEAR wfnl-fame_sub.
+      ENDIF.
+      IF wvbrkp-fkdat BETWEEN '20240401' AND '20240418'.
+        CLEAR wfnl-post_gst.
+      ENDIF.
+*      EoC
+
+      "BOC
+      IF wfnl-fkdat IS NOT INITIAL.
+        wfnl-fkdat_n = |{ wfnl-fkdat+0(4) }/{ wfnl-fkdat+4(2) }/{ wfnl-fkdat+6(2) }|.
+      ENDIF.
+      IF wfnl-posting_date  IS NOT INITIAL.
+        wfnl-posting_date_n  = |{ wfnl-posting_date+0(4) }/{ wfnl-posting_date+4(2) }/{ wfnl-posting_date+6(2) }|.
+      ENDIF.
+      IF wfnl-ori_invdt IS NOT INITIAL.
+        wfnl-ori_invdt_n =  |{ wfnl-ori_invdt+0(4) }/{ wfnl-ori_invdt+4(2) }/{ wfnl-ori_invdt+6(2) }|.
+      ENDIF.
+      IF wfnl-irn_date IS NOT INITIAL.
+        wfnl-irn_date_n  = |{ wfnl-irn_date+6(4) }/{ wfnl-irn_date+3(2) }/{ wfnl-irn_date+0(2) }|.
+      ENDIF.
+      IF wfnl-reg_desc IS NOT INITIAL.
+        wfnl-reg_desc = wfnl-reg_desc+0(2).
+      ENDIF.
+
+      IF wfnl-gst_shipto IS NOT INITIAL.
+        wfnl-gst_shipto_n = wfnl-gst_shipto+0(2).
+      ENDIF.
+
+      "EOC
+* Begin of addition by AE2926
+      wfnl-exp_inv = wfnl-tot_amt * wvbrkp-kurrf.
+* End of addition by AE2926
+
+      " vamsi
+*SELECT SINGLE mtart INTO wfnl-mtart FROM mara WHERE matnr = wfnl-matnr.
+      READ TABLE it_mara INTO DATA(wa_mara) WITH KEY matnr = wfnl-matnr.
+      wfnl-mtart = wa_mara-mtart.
+
+      MOVE-CORRESPONDING wfnl TO wa_ysal_reg.
+      APPEND wfnl TO tfnl.
+      APPEND wa_ysal_reg TO it_ysal_reg.
+*    BoC SHDK913900
+      AT END OF vbeln.
+        modify_taxval = 'X'.
+      ENDAT.
+      IF modify_taxval = 'X'.
+        MOVE wtotal_cgst TO wfnl-total_cgst.
+        MOVE wtotal_sgst TO wfnl-total_sgst.
+        MOVE wtotal_igst TO wfnl-total_igst.
+        IF wvbrkp-vbtyp = 'N' OR wvbrkp-fkart = 'ZARE'.
+          wfnl-total_sgst   = - ( wfnl-total_sgst ).
+          wfnl-total_cgst   = - ( wfnl-total_cgst ).
+          wfnl-total_igst   = - ( wfnl-total_igst ).
+        ENDIF.
+*        IF wvbrkp-fkart = 'ZARV' OR wvbrkp-fkart = 'ZDRT'  "Begin Of Comment on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+*        OR wvbrkp-fkart = 'ZARN'
+*        OR wvbrkp-fkart = 'ZARC'
+*        OR wvbrkp-fkart = 'ZARM' "SHDK909485.
+*        OR wvbrkp-fkart = 'ZDRM'.                         "End Of Comment on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+        IF wvbrkp-vbtyp = 'O'.                             "Added on 09.04.25/ SHDK921036 S /2000003497/ BSOFT-50355
+          wfnl-total_sgst   = - ( wfnl-total_sgst ).
+          wfnl-total_cgst   = - ( wfnl-total_cgst ).
+          wfnl-total_igst   = - ( wfnl-total_igst ).
+        ENDIF.
+        MODIFY tfnl FROM wfnl TRANSPORTING total_cgst total_sgst total_igst WHERE vbeln = wfnl-vbeln.
+        CLEAR : wtotal_cgst, wtotal_sgst, wtotal_igst.
+        CLEAR modify_taxval.
+      ENDIF.
+*      EoC
+
+      CLEAR : wvbrkp,wfnl,wprcd,wmarc,wadrc,wbut000,wt007s,wser01,wpgst,wbkpf,tot,wt005u,wreg_data,wa_lines,wa_vbrk,wa_vbrk1.
+      REFRESH : lines.
+    ENDLOOP.
+  ELSE.
+    MESSAGE 'No data to Dispaly' TYPE 'I' ##NO_TEXT.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+  IF p_chk1 = abap_true.
+    IF it_ysal_reg[] IS NOT INITIAL.
+      DELETE zysal_reg FROM TABLE it_ysal_reg.
+      COMMIT WORK AND WAIT.
+      INSERT zysal_reg FROM TABLE it_ysal_reg ACCEPTING DUPLICATE KEYS.
+      COMMIT WORK AND WAIT.
+      MESSAGE 'Data updated in the Table ZYSAL_REG' TYPE 'I' ##NO_TEXT.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISPAY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM dispay .
+
+  PERFORM fieldcat.
+  " Added by vamsi  SHDK924280
+  IF p_layout IS NOT INITIAL.
+    PERFORM layout_fields.
+    lt_fldrange = VALUE #( FOR field1 IN lt_fcat_out ( sign = 'I' option = 'EQ' low = field1-fieldname  ) ) .
+    DELETE it_fieldcat WHERE fieldname NOT IN lt_fldrange.
+  ENDIF.
+  " eoc
+*  DATA : it_sort TYPE slis_t_sortinfo_alv,
+*         wa_sort TYPE slis_sortinfo_alv..
+*  wa_sort-spos      = 1.
+*  wa_sort-fieldname = 'VBELN'.
+*  wa_sort-up        = 'X'.
+*  wa_sort-subtot    = 'X'.
+*  APPEND wa_sort TO it_sort.
+*  CLEAR wa_sort.
+
+  wa_layout-zebra = 'X' .
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program     = sy-repid
+      i_callback_top_of_page = 'TOP-OF-PAGE'
+      is_layout              = wa_layout
+      it_fieldcat            = it_fieldcat[]
+*     it_sort                = it_sort[]
+      i_save                 = 'X'
+    TABLES
+      t_outtab               = tfnl[]
+    EXCEPTIONS
+      program_error          = 1
+      OTHERS                 = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.
+
+*-------------------------------------------------------------------*
+* Form  TOP-OF-PAGE                                                 *
+*-------------------------------------------------------------------*
+* ALV Report Header                                                 *
+*-------------------------------------------------------------------*
+FORM top-of-page.
+*ALV Header declarations
+  DATA: t_header      TYPE slis_t_listheader,
+        wa_header     TYPE slis_listheader,
+        t_line        LIKE wa_header-info,
+        ld_lines      TYPE i,
+        ld_linesc(10) TYPE c,
+        c1(10)        TYPE c,
+        c2(10)        TYPE c.
+
+  wa_header-typ  = 'H'.
+  wa_header-info = 'Sales Register' ##NO_TEXT.
+  APPEND wa_header TO t_header.
+  CLEAR wa_header.
+
+  wa_header-typ  = 'S'.
+  wa_header-key = 'Date Range:' ##NO_TEXT.
+  CONCATENATE  s_date-low+6(2) '/'
+               s_date-low+4(2) '/'
+               s_date-low(4) INTO c1.
+
+  CONCATENATE s_date-high+6(2) '/'
+              s_date-high+4(2) '/'
+              s_date-high(4) INTO c2.
+  CONCATENATE  c1 '-' c2 INTO
+            wa_header-info SEPARATED BY space.
+
+  APPEND wa_header TO t_header.
+  CLEAR wa_header.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_header.
+ENDFORM.                    "top-of-page
+*&---------------------------------------------------------------------*
+*& Form send_mail
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM send_mail.
+  DATA:
+    mt_fcat        TYPE lvc_t_fcat,
+    mt_data        TYPE REF TO data,
+    m_flavour      TYPE string,
+    m_version      TYPE string,
+    mo_result_data TYPE REF TO cl_salv_ex_result_data_table,
+    mo_columns     TYPE REF TO cl_salv_columns_table,
+    mo_aggreg      TYPE REF TO cl_salv_aggregations,
+    mo_salv_table  TYPE REF TO cl_salv_table,
+    m_file_type    TYPE salv_bs_constant,
+    g_xstring      TYPE xstring,
+    g_len          TYPE i,
+    binary_content TYPE solix_tab,
+    main_text      TYPE bcsy_text,
+    document       TYPE REF TO cl_document_bcs,
+    recipient      TYPE REF TO if_recipient_bcs.
+
+  FIELD-SYMBOLS <tab> TYPE ANY TABLE.
+
+  DATA :
+    send_request TYPE REF TO cl_bcs,
+    lt_att_head  TYPE soli_tab,
+    lv_filename  TYPE string,
+    lv_text_line TYPE soli,
+    lv_atta_size TYPE sood-objlen,
+    lv_sub       TYPE so_obj_des.
+
+  DATA :
+    lv_datum    TYPE char20,
+    ct_fieldcat TYPE lvc_t_fcat,
+    cs_fieldcat TYPE LINE OF lvc_t_fcat.
+
+  DATA : bcs_error TYPE REF TO cx_send_req_bcs.
+  DATA : bcs_mess TYPE string   .
+
+  DATA: lr_addr_exc     TYPE REF TO cx_address_bcs,
+        lx_document_bcs TYPE REF TO cx_document_bcs.
+
+  DATA : s_mailid  TYPE RANGE OF adr6-smtp_addr,
+         ls_mailid LIKE LINE OF s_mailid.
+
+  PERFORM fieldcat.
+
+  " Added by vamsi  SHDK924280
+  IF p_layout IS NOT INITIAL.
+    PERFORM layout_fields.
+    lt_fldrange = VALUE #( FOR field1 IN lt_fcat_out ( sign = 'I' option = 'EQ' low = field1-fieldname  ) ) .
+    DELETE it_fieldcat WHERE fieldname NOT IN lt_fldrange.
+  ENDIF.
+  " eoc  SHDK924280
+
+  FIELD-SYMBOLS <fs_fcat> TYPE lvc_s_fcat.
+  IF NOT tfnl IS INITIAL.
+    GET REFERENCE OF tfnl INTO mt_data.
+    lv_datum = sy-datum.
+    CONCATENATE lv_datum+6(2)
+                lv_datum+4(2)
+                lv_datum+0(4) INTO lv_datum SEPARATED BY '-'.
+
+* --if we didn't pass fieldcatalog we need to create it
+    ASSIGN mt_data->* TO <tab>.
+    TRY .
+        cl_salv_table=>factory(
+        EXPORTING
+        list_display = abap_false
+        IMPORTING
+        r_salv_table = mo_salv_table
+        CHANGING
+        t_table      = <tab> ).
+      CATCH cx_salv_msg       ##NO_HANDLER.
+    ENDTRY.
+
+**--get colums & aggregation infor to create fieldcat
+    mo_columns  = mo_salv_table->get_columns( ).
+    mo_aggreg   = mo_salv_table->get_aggregations( ).
+
+    IF p_layout IS NOT INITIAL.
+      CLEAR lt_fcat_out.
+      MOVE-CORRESPONDING it_fieldcat TO lt_fcat_out.
+      mt_fcat = lt_fcat_out.
+    ELSE.
+      mt_fcat     =  cl_salv_controller_metadata=>get_lvc_fieldcatalog(
+      r_columns      = mo_columns
+      r_aggregations = mo_aggreg ).
+    ENDIF.
+
+    LOOP AT mt_fcat ASSIGNING <fs_fcat>.
+      CASE <fs_fcat>-fieldname.
+*        WHEN 'CHECKBOX'.
+*          <fs_fcat>-coltext    =  'Select' ##NO_TEXT.
+        WHEN 'VBELN'.
+          <fs_fcat>-coltext    =  TEXT-005.
+        WHEN 'POD_DAT'.
+          <fs_fcat>-coltext    =  TEXT-006.
+        WHEN 'POSNR'.
+          <fs_fcat>-coltext    =  TEXT-007.
+        WHEN 'PRCTR'.
+          <fs_fcat>-coltext    =  TEXT-008.
+        WHEN 'FKART'.
+          <fs_fcat>-coltext    =  TEXT-009.
+        WHEN 'VTEXT'.
+          <fs_fcat>-coltext    =  TEXT-010.
+        WHEN 'XBLNR'.
+          <fs_fcat>-coltext    = TEXT-011.
+        WHEN 'BELNR'.
+          <fs_fcat>-coltext    =  TEXT-012.
+        WHEN 'SHIP_BILLNO'.
+          <fs_fcat>-coltext    =  TEXT-013.
+        WHEN 'SHIP_BILLDATE'.
+          <fs_fcat>-coltext    =  TEXT-014.
+        WHEN 'PORT'.
+          <fs_fcat>-coltext    =  TEXT-015.
+        WHEN 'IRN_NUM'.
+          <fs_fcat>-coltext    =  TEXT-016.
+        WHEN 'IRN_STATUS'.
+          <fs_fcat>-coltext    =  TEXT-017.
+        WHEN 'ZUONR'.
+          <fs_fcat>-coltext    =  TEXT-018.
+        WHEN 'POSTING_DATE'.
+          <fs_fcat>-coltext    =  TEXT-019.
+        WHEN 'POSTING_DATE_N'.
+          <fs_fcat>-coltext    =  TEXT-020.
+        WHEN 'ORI_INVNO'.
+          <fs_fcat>-coltext    =  TEXT-021.
+        WHEN 'ORI_INVDT'.
+          <fs_fcat>-coltext    =  TEXT-022.
+        WHEN 'ORI_INVDT_N'.
+          <fs_fcat>-coltext    =  TEXT-023.
+        WHEN 'DOC_TYPE'.
+          <fs_fcat>-coltext    = TEXT-024.
+        WHEN 'SUPPLY_TYPE'.
+          <fs_fcat>-coltext    =  TEXT-025.
+        WHEN 'KTGRD'.
+          <fs_fcat>-coltext    =  TEXT-026.
+        WHEN 'KTGRM'.
+          <fs_fcat>-coltext    =  TEXT-027.
+        WHEN 'MTART'.
+          <fs_fcat>-coltext    = TEXT-028.
+        WHEN 'ZTERM'.
+          <fs_fcat>-coltext    =  TEXT-029.
+        WHEN 'VTEXT_ZTERM'.
+          <fs_fcat>-coltext    =  TEXT-030.
+        WHEN 'BSTNK_VF'.
+          <fs_fcat>-coltext    =  TEXT-031.
+        WHEN 'FKDAT'.
+          <fs_fcat>-coltext    =  TEXT-032.
+        WHEN 'FKDAT_N'.
+          <fs_fcat>-coltext    =  TEXT-033.
+        WHEN 'ERNAM'.
+          <fs_fcat>-coltext    =  TEXT-034.
+        WHEN 'BUKRS'.
+          <fs_fcat>-coltext    =  TEXT-035.
+        WHEN 'WAERK'.
+          <fs_fcat>-coltext    =  TEXT-036.
+        WHEN 'VKORG'.
+          <fs_fcat>-coltext    =  TEXT-037.
+        WHEN 'VTWEG'.
+          <fs_fcat>-coltext    =  TEXT-038.
+        WHEN 'SPART'.
+          <fs_fcat>-coltext    =  TEXT-039.
+        WHEN 'B2B_B2C'.
+          <fs_fcat>-coltext    =  TEXT-040.
+        WHEN 'KUNRG'.
+          <fs_fcat>-coltext    =  TEXT-041.
+        WHEN 'CUST_CAT'.
+          <fs_fcat>-coltext    =  TEXT-042.
+        WHEN 'NAME'.
+          <fs_fcat>-coltext    =  TEXT-043.
+        WHEN 'KUNNR'.
+          <fs_fcat>-coltext    =  TEXT-044.
+        WHEN 'GST_SHIPTO_N'.
+          <fs_fcat>-coltext    =  TEXT-045.
+        WHEN 'GST_SHIPTO'.
+          <fs_fcat>-coltext    =  TEXT-114.  " added by vamsi
+        WHEN 'GSTIN'.
+          <fs_fcat>-coltext    =  TEXT-115.  " added by vamsi
+        WHEN 'REGION'.
+          <fs_fcat>-coltext    =  TEXT-046.
+        WHEN 'REG_DESC'.
+          <fs_fcat>-coltext    =  TEXT-047.
+        WHEN 'STATE_DESC'.
+          <fs_fcat>-coltext    =  TEXT-048.
+        WHEN 'BPEXT'.
+          <fs_fcat>-coltext    = TEXT-049.
+        WHEN 'STCD3'.
+          <fs_fcat>-coltext    =  TEXT-050.
+        WHEN 'MATNR'.
+          <fs_fcat>-coltext    = TEXT-051.
+        WHEN 'ARKTX'.
+          <fs_fcat>-coltext    = TEXT-052.
+        WHEN 'WERKS'.
+          <fs_fcat>-coltext    = TEXT-053.
+        WHEN 'PLANT_DES'.
+          <fs_fcat>-coltext    =  TEXT-054.
+        WHEN 'WKREG'.
+          <fs_fcat>-coltext    =  TEXT-055.
+        WHEN 'REG_DEL_DESC'.
+          <fs_fcat>-coltext    =  TEXT-056.
+        WHEN 'AUBEL'.
+          <fs_fcat>-coltext    =  TEXT-057.
+        WHEN 'AUART'.
+          <fs_fcat>-coltext    =  TEXT-058.
+        WHEN 'AUPOS'.
+          <fs_fcat>-coltext    =  TEXT-059.
+        WHEN 'VGBEL'.
+          <fs_fcat>-coltext    = TEXT-060.
+        WHEN 'VGPOS'.
+          <fs_fcat>-coltext    =  TEXT-061.
+        WHEN 'FKIMG'.
+          <fs_fcat>-coltext    =  TEXT-062.
+        WHEN 'VRKME'.
+          <fs_fcat>-coltext    = TEXT-063.
+        WHEN 'STEUC'.
+          <fs_fcat>-coltext    =  TEXT-064.
+        WHEN 'SERNR'.
+          <fs_fcat>-coltext    =  TEXT-065.
+        WHEN 'VIN'.
+          <fs_fcat>-coltext    =  TEXT-066.
+        WHEN 'MOTOR'.
+          <fs_fcat>-coltext    = TEXT-067.
+        WHEN 'COLOR'.
+          <fs_fcat>-coltext    =  TEXT-068.
+        WHEN 'RATE'.
+          <fs_fcat>-coltext    =  TEXT-069.
+        WHEN 'QTY_PRC'.
+          <fs_fcat>-coltext    =  TEXT-070.
+        WHEN 'DISCOUNT'.
+          <fs_fcat>-coltext    =  TEXT-071.
+        WHEN 'HANDLING'.
+          <fs_fcat>-coltext    =  TEXT-072.
+        WHEN 'KWERT'.
+          <fs_fcat>-coltext    =  TEXT-073.
+        WHEN 'TAXABLE_AMNT'.
+          <fs_fcat>-coltext    =  TEXT-074.
+        WHEN 'TOTAL_TAX'.
+          <fs_fcat>-coltext    =  TEXT-075.
+        WHEN 'PSGST'.
+          <fs_fcat>-coltext    =  TEXT-076.
+        WHEN 'SGST'.
+          <fs_fcat>-coltext    =  TEXT-077.
+        WHEN 'PCGST'.
+          <fs_fcat>-coltext    =  TEXT-078.
+        WHEN 'CGST'.
+          <fs_fcat>-coltext    =  TEXT-079.
+        WHEN 'PIGST'.
+          <fs_fcat>-coltext    =  TEXT-080.
+        WHEN 'IGST'.
+          <fs_fcat>-coltext    =  TEXT-081.
+        WHEN 'FAME_SUB'.
+          <fs_fcat>-coltext    =  TEXT-082.
+        WHEN 'EMPS_SUBS'.
+          <fs_fcat>-coltext    =  TEXT-083.
+        WHEN 'ZPDS'.
+          <fs_fcat>-coltext    =  TEXT-084.
+        WHEN 'SSUB'.
+          <fs_fcat>-coltext    =  TEXT-106.
+        WHEN 'POST_GST'.
+          <fs_fcat>-coltext    =  TEXT-085.
+        WHEN 'APS'.
+          <fs_fcat>-coltext    =  TEXT-086.
+        WHEN 'MWSK1'.
+          <fs_fcat>-coltext    =  TEXT-087.
+        WHEN 'TEXT1'.
+          <fs_fcat>-coltext    =  TEXT-088.
+        WHEN 'TOT_AMT'.
+          <fs_fcat>-coltext    =  TEXT-089.
+        WHEN 'SOQTY'.
+          <fs_fcat>-coltext    =  TEXT-090.
+        WHEN 'PAYDOCDT'.
+          <fs_fcat>-coltext    =  TEXT-091.
+        WHEN 'UDATE'.
+          <fs_fcat>-coltext    =  TEXT-092.
+        WHEN 'SOTYPDESC'.
+          <fs_fcat>-coltext    =  TEXT-093.
+        WHEN 'TCS'.
+          <fs_fcat>-coltext    =  TEXT-094.
+        WHEN 'TCS_RATE'.
+          <fs_fcat>-coltext    =  TEXT-095.
+        WHEN 'TCS_VALUE'.
+          <fs_fcat>-coltext    =  TEXT-096.
+        WHEN 'TOTAL_CGST'.
+          <fs_fcat>-coltext    =  TEXT-097.
+        WHEN 'TOTAL_SGST'.
+          <fs_fcat>-coltext    =  TEXT-098.
+        WHEN 'TOTAL_IGST'.
+          <fs_fcat>-coltext    =  TEXT-099.
+        WHEN 'IRN_DATE'.
+          <fs_fcat>-coltext    =  TEXT-100.
+        WHEN 'IRN_DATE_N'.
+          <fs_fcat>-coltext    =  TEXT-101.
+        WHEN 'LAND1'.
+          <fs_fcat>-coltext    =  TEXT-102.
+        WHEN 'INVAMT_TCS'.
+          <fs_fcat>-coltext    =  TEXT-103.
+        WHEN 'RET_PER'.
+          <fs_fcat>-coltext    =  TEXT-104.
+        WHEN 'EXP_INV'.
+          <fs_fcat>-coltext    =  TEXT-105.
+      ENDCASE.
+    ENDLOOP.
+
+    IF cl_salv_bs_a_xml_base=>get_version( ) EQ
+       if_salv_bs_xml=>version_25 OR
+       cl_salv_bs_a_xml_base=>get_version( ) EQ
+       if_salv_bs_xml=>version_26.
+
+      IF ct_fieldcat IS NOT INITIAL.
+        mo_result_data = cl_salv_ex_util=>factory_result_data_table(
+           r_data                      = mt_data
+           t_fieldcatalog              = ct_fieldcat
+           ).
+
+      ELSE.
+        mo_result_data = cl_salv_ex_util=>factory_result_data_table(
+          r_data                      = mt_data
+          t_fieldcatalog              = mt_fcat "ct_fieldcat
+          ).
+      ENDIF.
+
+      CASE cl_salv_bs_a_xml_base=>get_version( ).
+        WHEN if_salv_bs_xml=>version_25.
+          m_version = if_salv_bs_xml=>version_25.
+        WHEN if_salv_bs_xml=>version_26.
+          m_version = if_salv_bs_xml=>version_26.
+      ENDCASE.
+
+      m_file_type = if_salv_bs_xml=>c_type_xlsx.
+
+      m_flavour = if_salv_bs_c_tt=>c_tt_xml_flavour_export.
+
+**--transformation of data to excel
+      CLEAR g_xstring.
+      CALL METHOD cl_salv_bs_tt_util=>if_salv_bs_tt_util~transform
+        EXPORTING
+          xml_type      = m_file_type
+          xml_version   = m_version
+          r_result_data = mo_result_data
+          xml_flavour   = m_flavour
+          gui_type      = if_salv_bs_xml=>c_gui_type_gui
+        IMPORTING
+          xml           = g_xstring.
+    ENDIF.
+    CLEAR g_len.
+    g_len = xstrlen( g_xstring ).
+
+    CALL METHOD cl_bcs_convert=>xstring_to_solix
+      EXPORTING
+        iv_xstring = g_xstring
+      RECEIVING
+        et_solix   = binary_content.
+*       ).
+    CLEAR lv_filename.
+    CONCATENATE TEXT-107 lv_datum '.XLSX' INTO lv_filename SEPARATED BY space .
+
+*--sending mail
+    TRY.
+        send_request = cl_bcs=>create_persistent( ).
+
+**--create document object from internal table with text
+        REFRESH main_text[].
+        APPEND TEXT-108 TO main_text                                                    ##NO_TEXT.
+        APPEND ' ' TO main_text.
+
+*            CONCATENATE 'Please find the attached B2S2 STO Report as on' lv_datum INTO DATA(wbody) SEPARATED BY ' '                 ##NO_TEXT.
+        CONCATENATE TEXT-109 lv_datum INTO DATA(wbody) SEPARATED BY ' '                 ##NO_TEXT.
+        APPEND wbody TO main_text.
+        APPEND  ' ' TO main_text.
+        APPEND TEXT-110 TO main_text                                             ##NO_TEXT.
+        APPEND TEXT-111  TO main_text                     ##NO_TEXT.
+        APPEND ' '  TO main_text.
+        CONCATENATE  p_esub lv_datum INTO lv_sub     ##NO_TEXT.
+        TRY.
+            document = cl_document_bcs=>create_document(
+            i_type    = 'RAW'
+            i_text    = main_text
+      i_subject = lv_sub ) .
+
+*     add the spread sheet as attachment to document object
+            lv_atta_size = g_len.
+
+            CLEAR lv_text_line.
+            REFRESH : lt_att_head[].
+
+            CONCATENATE '&SO_FILENAME=' lv_filename INTO lv_text_line.
+            APPEND lv_text_line TO lt_att_head.
+
+            document->add_attachment(
+            i_attachment_type    = 'BIN'
+                i_attachment_subject = lv_sub
+**i_attachment_subject = p_sub
+            i_attachment_size    = lv_atta_size
+            i_att_content_hex    = binary_content
+            i_attachment_header  = lt_att_head ).
+
+**--add document object to send request
+            send_request->set_document( document ).
+          CATCH cx_document_bcs INTO lx_document_bcs       ##NO_HANDLER.
+        ENDTRY.
+
+        IF s_name IS NOT INITIAL.
+          LOOP AT s_name.
+            ls_mailid-low  =   s_name-low.
+            ls_mailid-sign = 'I'.
+            ls_mailid-option = 'EQ'.
+            APPEND ls_mailid TO s_mailid.
+          ENDLOOP.
+        ENDIF.
+
+        TRY.
+            LOOP AT s_mailid INTO ls_mailid.
+              TRY.
+                  recipient = cl_cam_address_bcs=>create_internet_address( ls_mailid-low  ).
+
+**--add recipient object to send request
+                  send_request->add_recipient( recipient ).
+                CATCH cx_address_bcs INTO lr_addr_exc            ##NO_HANDLER.
+              ENDTRY.
+*                  ENDIF.
+            ENDLOOP.
+          CATCH cx_address_bcs INTO lr_addr_exc                      ##NO_HANDLER.
+        ENDTRY.
+        TRY.
+            CALL METHOD send_request->set_send_immediately( 'X' ).
+            CALL METHOD send_request->send( ).
+          CATCH cx_send_req_bcs INTO bcs_error.
+            bcs_mess = bcs_error->get_text( ).
+        ENDTRY.
+        COMMIT WORK           ##SUBRC_AFTER_COMMIT.
+        IF sy-subrc = 0.
+*          MESSAGE TEXT-112 TYPE  'S'.
+          MESSAGE s018(zmm_msg).
+        ENDIF.
+      CATCH cx_send_req_bcs INTO bcs_error.
+        bcs_mess = bcs_error->get_text( ).
+    ENDTRY.
+*      ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form fieldcat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM fieldcat .
+  DATA : counter TYPE char10.
+  CLEAR   counter.
+  SORT tfnl BY vbeln posnr.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VBELN'.
+  wa_fieldcat-seltext_l = 'SAP reference Number' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'POD_DAT'.
+  wa_fieldcat-seltext_l = 'POD Date' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'POSNR'.
+  wa_fieldcat-seltext_l = 'item' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* BoC BSOFT-51836
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PRCTR'.
+  wa_fieldcat-seltext_l = 'Profit Center' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* EoC
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'FKART'.
+  wa_fieldcat-seltext_l = 'Billing Doc. Type' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VTEXT'.
+  wa_fieldcat-seltext_l = 'Billing Type Description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'XBLNR'.
+  wa_fieldcat-seltext_l = 'Invoice Number' ##NO_TEXT.
+  wa_fieldcat-outputlen = '16'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'BELNR'.
+  wa_fieldcat-seltext_l = 'SAP FI Document' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* BoC 28/08/2023   SHDK913355
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SHIP_BILLNO'.
+  wa_fieldcat-seltext_l = 'Shipping Bill Number' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SHIP_BILLDATE'.
+  wa_fieldcat-seltext_l = 'Shipping Bill Date' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PORT'.
+  wa_fieldcat-seltext_l = 'Port Code' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'IRN_NUM'.
+  wa_fieldcat-seltext_l = 'IRN Reference Number' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'IRN_STATUS'.
+  wa_fieldcat-seltext_l = 'E-invoice Status' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* EoC
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ZUONR'.
+  wa_fieldcat-seltext_l = 'Reference document' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* BoC 29-08-2023  SHDK913355
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'POSTING_DATE'.
+  wa_fieldcat-seltext_l = 'Posting Date_N' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+*  EoC
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'POSTING_DATE_N'.
+  wa_fieldcat-seltext_l = 'Posting Date' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+
+  "BOC "Added on 27.04.2023  #5726
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ORI_INVNO'.
+  wa_fieldcat-seltext_l = 'Origin Inv No.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ORI_INVDT'.
+  wa_fieldcat-seltext_l = 'Original Inv Dt_N' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+  "EOC "Added on 27.04.2023  #5726
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ORI_INVDT_N'.
+  wa_fieldcat-seltext_l = 'Original Inv Dt.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* BoC 28-8-2023 SHDK913355
+* Document Type(Invoice/DN/CN)
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'DOC_TYPE'.
+  wa_fieldcat-seltext_l = 'Document Type(Invoice/DN/CN)' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SUPPLY_TYPE'.
+  wa_fieldcat-seltext_l = 'Supply Type(B2B/B2C/EXPORT/SEZ)' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'KTGRD'.
+  wa_fieldcat-seltext_l = 'Customer Accounting Group' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'KTGRM'.
+  wa_fieldcat-seltext_l = 'Acc Assignment Group' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'MTART'.
+  wa_fieldcat-seltext_l = 'Material Type' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ZTERM'.
+  wa_fieldcat-seltext_l = 'Payment Terms' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VTEXT_ZTERM'.
+  wa_fieldcat-seltext_l = 'Payment term description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* EoC
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'BSTNK_VF'.
+  wa_fieldcat-seltext_l = 'Ather Order ID' ##NO_TEXT.
+  wa_fieldcat-outputlen = '35'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'FKDAT'.
+  wa_fieldcat-seltext_l = 'Invoice date_N' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'FKDAT_N'.
+  wa_fieldcat-seltext_l = 'Invoice date' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ERNAM'.
+  wa_fieldcat-seltext_l = 'Created By' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'BUKRS'.
+  wa_fieldcat-seltext_l = 'Company Code' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'WAERK'.
+  wa_fieldcat-seltext_l = 'Currency' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VKORG'.
+  wa_fieldcat-seltext_l = 'Sales organization' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VTWEG'.
+  wa_fieldcat-seltext_l = 'Distribution channel' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SPART'.
+  wa_fieldcat-seltext_l = 'Division' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* BoC 29-08-2023
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'B2B_B2C'.
+  wa_fieldcat-seltext_l = 'B2B/B2C' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* EoC
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'KUNRG'.
+  wa_fieldcat-seltext_l = 'Customer ID SAP' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'CUST_CAT'.
+  wa_fieldcat-seltext_l = 'Customer Category' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'NAME'.
+  wa_fieldcat-seltext_l = 'Customer Name' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+******* MS on 01.02.2022
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'KUNNR'.
+  wa_fieldcat-seltext_l = 'Ship to Code' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'GST_SHIPTO'.
+  wa_fieldcat-seltext_l = 'Ship to GSTIN_N' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'GST_SHIPTO_N'.
+  wa_fieldcat-seltext_l = 'Ship to GSTIN' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'REGION'.
+  wa_fieldcat-seltext_l = 'Place of supply' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'REG_DESC'.
+*  wa_fieldcat-seltext_l = 'Place of supply Desc.'. "-BSOFT-57824
+*  wa_fieldcat-seltext_l = 'StateCode'.              "+BSOFT-57824
+  wa_fieldcat-seltext_l = 'Place of supply Desc.' ##NO_TEXT. "-BSOFT-57824 Added by Vamsi_gm 31.07.2025
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+  "+BSOFT-57824
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'STATE_DESC'.
+  wa_fieldcat-seltext_l = 'State Code Description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'BPEXT'.
+  wa_fieldcat-seltext_l = 'Ather Customer ID' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'STCD3'.
+  wa_fieldcat-seltext_l = 'Customer GST Registration' ##NO_TEXT.
+  wa_fieldcat-outputlen = '18'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'MATNR'.
+  wa_fieldcat-seltext_l = 'Material number' ##NO_TEXT.
+  wa_fieldcat-outputlen = '20'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ARKTX'.
+  wa_fieldcat-seltext_l = 'Material Description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'WERKS'.
+  wa_fieldcat-seltext_l = 'Shipping Plant' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PLANT_DES'.
+  wa_fieldcat-seltext_l = 'Shipping Plant Description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'GSTIN'.
+  wa_fieldcat-seltext_l = 'Plant GST reg.No.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'WKREG'.
+  wa_fieldcat-seltext_l = 'Region of delivering plant' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'REG_DEL_DESC'.
+  wa_fieldcat-seltext_l = 'Region of del. plant Desc.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'AUBEL'.
+  wa_fieldcat-seltext_l = 'Sales order No.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'AUART'.
+  wa_fieldcat-seltext_l = 'Sales order Type' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'AUPOS'.
+  wa_fieldcat-seltext_l = 'Sales order Item' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VGBEL'.
+  wa_fieldcat-seltext_l = 'Outbound delivery' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VGPOS'.
+  wa_fieldcat-seltext_l = 'Delivery Item' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'FKIMG'.
+  wa_fieldcat-seltext_l = 'Invoice Quantity' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VRKME'.
+  wa_fieldcat-seltext_l = 'Unit of Measure' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'STEUC'.
+  wa_fieldcat-seltext_l = 'HSN/SAC code' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SERNR'.
+  wa_fieldcat-seltext_l = 'Serial Number' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'VIN'.
+  wa_fieldcat-seltext_l = 'VIN Number' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'MOTOR'.
+  wa_fieldcat-seltext_l = 'Moter' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'COLOR'.
+  wa_fieldcat-seltext_l = 'Color' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'RATE'.
+  wa_fieldcat-seltext_l = 'Price' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'QTY_PRC'.
+  wa_fieldcat-seltext_l = 'Qty*Price' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'DISCOUNT'.
+*  wa_fieldcat-seltext_l = 'Discount'.
+  wa_fieldcat-seltext_l = 'Pre GST Discount' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'HANDLING'.
+  wa_fieldcat-seltext_l = 'Logistics Ins. & Handling' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'KWERT'.
+  wa_fieldcat-seltext_l = 'Insurance Charges' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+
+
+
+* BoC 28/08/2023 SHDK913355
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TAXABLE_AMNT'.
+  wa_fieldcat-seltext_l = 'Taxable Amount' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TOTAL_TAX'.
+  wa_fieldcat-seltext_l = 'Total Tax Amount' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+*  EoC
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PSGST'.
+  wa_fieldcat-seltext_l = 'SGST in %' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SGST'.
+  wa_fieldcat-seltext_l = 'SGST' ##NO_TEXT.
+*  wa_fieldcat-do_sum = 'X'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PCGST'.
+  wa_fieldcat-seltext_l = 'CGST in %' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'CGST'.
+  wa_fieldcat-seltext_l = 'CGST' ##NO_TEXT.
+*  wa_fieldcat-do_sum = 'X'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PIGST'.
+  wa_fieldcat-seltext_l = 'IGST in %' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'IGST'.
+  wa_fieldcat-seltext_l = 'IGST' ##NO_TEXT.
+*  wa_fieldcat-do_sum = 'X'.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'FAME_SUB'.
+  wa_fieldcat-seltext_l = 'FAME Subsidy' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* BoC BSOFT-29474
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'EMPS_SUBS'.
+  wa_fieldcat-seltext_l = 'EMPS Subsidy' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+*  EoC
+*  BoC PM E Drive
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'ZPDS'.
+  wa_fieldcat-seltext_l = 'PM E-Drive Subsidy' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+*EoC
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SSUB'.
+  wa_fieldcat-seltext_l = 'State Subsidy' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+*SHDK913046
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'POST_GST'.
+*  wa_fieldcat-no_zero = 'X'.
+  wa_fieldcat-seltext_l = 'Post GST Discount' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* BoC "BSOFT-29474
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'APS'.
+*  wa_fieldcat-no_zero = 'X'.
+  wa_fieldcat-seltext_l = 'Ather Promotional Scheme' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* EoC
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'MWSK1'.
+  wa_fieldcat-seltext_l = 'Tax code' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TEXT1'.
+  wa_fieldcat-seltext_l = 'Tax description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TOT_AMT'.
+  wa_fieldcat-seltext_l = 'Total Invoice Amount' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SOQTY'.
+  wa_fieldcat-seltext_l = 'Sale Order Qty' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'PAYDOCDT'.
+  wa_fieldcat-seltext_l = 'Payment Doc Dt.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'UDATE'.
+  wa_fieldcat-seltext_l = 'Sale Order Rls Dt.' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'SOTYPDESC'.
+  wa_fieldcat-seltext_l = 'SO Type Description' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TCS'.
+  wa_fieldcat-seltext_l = 'TCS (Y/N)' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TCS_RATE'.
+  wa_fieldcat-seltext_l = 'TCS Rate' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TCS_VALUE'.
+  wa_fieldcat-seltext_l = 'TCS Value' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TOTAL_CGST'.
+  wa_fieldcat-seltext_l = 'Total CGST Invoice Level' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TOTAL_SGST'.
+  wa_fieldcat-seltext_l = 'Total SGST Invoice Level' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'TOTAL_IGST'.
+  wa_fieldcat-seltext_l = 'Total IGST Invoice Level' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'IRN_DATE'.
+  wa_fieldcat-seltext_l = 'IRN Date_n' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'IRN_DATE_N'.
+  wa_fieldcat-seltext_l = 'IRN Date' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'LAND1'.
+  wa_fieldcat-seltext_l = 'Country' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'INVAMT_TCS'.
+  wa_fieldcat-seltext_l = 'Total Invoice value for GST' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'RET_PER'.
+  wa_fieldcat-seltext_l = 'Return Period' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+* Begin of addition by AE2926
+  counter = counter + 1.
+  wa_fieldcat-col_pos = counter.
+  wa_fieldcat-tabname = 'TFNL'.
+  wa_fieldcat-fieldname = 'EXP_INV'.
+  wa_fieldcat-seltext_l = 'Export invoice local cur. value' ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+* End of addition by AE2926
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form layout_fields
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+" Added by vamsi  SHDK924280
+FORM layout_fields.
+
+
+* Fill the variant structure with the desired layout information
+  ls_variant-report = sy-repid. "Current report name
+  ls_variant-handle = ''. "Optional: If you have a specific handle
+  ls_variant-log_group = ''. "Optional: If you have a specific log group
+  ls_variant-variant = p_layout. "layout name
+  MOVE-CORRESPONDING it_fieldcat  TO lt_fcat_in.
+  CALL FUNCTION 'LVC_VARIANT_SELECT'
+    EXPORTING
+      i_dialog            = ' '
+      i_user_specific     = 'X'
+      i_default           = 'X'
+      it_default_fieldcat = lt_fcat_in
+    IMPORTING
+      et_fieldcat         = lt_fcat_out
+    CHANGING
+      cs_variant          = ls_variant
+    EXCEPTIONS
+      wrong_input         = 1
+      fc_not_complete     = 2
+      not_found           = 3
+      program_error       = 4
+      data_missing        = 5
+      OTHERS              = 6.
+  IF sy-subrc <> 0.
+
+    RAISE others.
+  ENDIF.
+  DELETE lt_fcat_out WHERE no_out = 'X'.
+ENDFORM.
+" eoc
