@@ -1,0 +1,198 @@
+
+  DATA : lo_send_request TYPE REF TO cl_bcs VALUE IS INITIAL.
+  CLASS cl_bcs DEFINITION LOAD.
+  DATA : lo_document     TYPE REF TO cl_document_bcs VALUE IS INITIAL.
+  DATA : i_text          TYPE bcsy_text.       "Table for body
+  DATA : w_text          LIKE LINE OF i_text.
+  DATA : lc_data         TYPE sxmsc255.
+  DATA : lo_sender       TYPE REF TO if_sender_bcs VALUE IS INITIAL.
+  DATA : lo_recipient    TYPE REF TO if_recipient_bcs VALUE IS INITIAL.
+  DATA : p_sub           TYPE char50 VALUE 'Materail List from SAP to DMS'.
+  DATA : lv_qty          TYPE char20.
+  DATA : lv_gswgt        TYPE char20.
+  DATA : lv_ntwgt        TYPE char20.
+  DATA : lv_serial_ind   TYPE c.
+  DATA : lv_send         TYPE c VALUE 'X'. "send immediately
+  DATA : s_mailid        TYPE RANGE OF adr6-smtp_addr.
+  DATA : ls_mailid       LIKE LINE OF s_mailid.
+  DATA : lv_string      TYPE string,
+         lv_data_string TYPE string,
+         lv_xstring     TYPE xstring.
+
+  DATA : lit_binary_content TYPE solix_tab,
+         l_attsubject       TYPE sood-objdes.
+
+** Get email ids from TVARVC table
+  SELECT sign opti low FROM tvarvc INTO TABLE s_mailid
+                       WHERE name = 'YDMS_MATMAS'
+                       AND   type = 'S'.
+  IF sy-subrc <> 0.
+    MESSAGE i899(v1) WITH 'Please maintain the Email Id list for YDMS_MATMAS !'.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+  TRY .
+      lo_send_request = cl_bcs=>create_persistent( ).
+    CATCH cx_send_req_bcs.
+  ENDTRY.
+
+**Set Message body
+  CLEAR: lc_data.
+  CONCATENATE 'Hi, ' space INTO lc_data.
+  w_text-line = lc_data.
+  APPEND w_text TO i_text.
+  CLEAR : w_text, lc_data.
+
+  CONCATENATE 'Please find attached Material List sent from SAP to DMS on- ' s_date-low '&' s_date-high INTO lc_data.
+  w_text-line = lc_data.
+  APPEND w_text TO i_text.
+  CLEAR w_text.
+
+  TRY .
+      lo_document = cl_document_bcs=>create_document( "create document
+        i_type = 'RAW'       "Type of document HTM, TXT etc
+        i_text =  i_text     "email body internal table
+        i_subject = p_sub ). "email subject here p_sub input parameter
+    CATCH cx_document_bcs.
+  ENDTRY.
+** Pass the document to send request
+  TRY .
+      lo_send_request->set_document( lo_document ).
+    CATCH cx_send_req_bcs.
+  ENDTRY.
+
+*****Set attachment
+** Add Header Line first
+  CONCATENATE 'Material Number' 'Material Description' 'Material Type' 'Plant' 'Storage Location'
+              'Material Group' 'Old material number' 'UoM' 'Gross Weight' 'Net Weight' 'Weight Unit'
+              'Division' 'Profit Center' 'Control code' 'TAX Percentage' 'Sales Org' 'Distribution Channel'
+              'Valuation Area' 'Valuation Class' 'Material status' 'Minimum order quantity'
+              'Batch indicator' 'Serial Number Profile' INTO lv_string
+              SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+  CONCATENATE lv_data_string lv_string INTO lv_data_string SEPARATED BY cl_abap_char_utilities=>newline.
+
+  LOOP AT gt_output INTO gs_output.
+    CLEAR : lv_qty, lv_gswgt, lv_ntwgt.
+    WRITE gs_output-aumng TO lv_qty.
+    WRITE gs_output-brgew TO lv_gswgt.
+    WRITE gs_output-ntgew TO lv_ntwgt.
+
+    IF gs_output-sernp IS NOT INITIAL.
+      lv_serial_ind = gc_true.
+    ELSE.
+      lv_serial_ind = space.
+    ENDIF.
+
+    CONCATENATE gs_output-matnr gs_output-maktx gs_output-mtart gs_output-werks gs_output-lgort
+                gs_output-matkl gs_output-bismt gs_output-meins lv_gswgt lv_ntwgt gs_output-gewei
+                gs_output-spart gs_output-prctr gs_output-steuc gs_output-ztax_per gs_output-vkorg
+                gs_output-vtweg gs_output-bwkey gs_output-bklas gs_output-vmsta lv_qty gs_output-xchpf
+                lv_serial_ind   INTO lv_string
+                SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+    CONCATENATE lv_data_string lv_string INTO lv_data_string SEPARATED BY cl_abap_char_utilities=>newline.
+    CLEAR : gs_output.
+  ENDLOOP.
+
+* --BOC Radhika 14-10-2022
+*---FM HR_KR_STRING_TO_XSTRING replaced with SCMS_STRING_TO_XSTRING
+**Convert string to xstring
+*  CALL FUNCTION 'HR_KR_STRING_TO_XSTRING'
+*    EXPORTING
+**     codepage_to      = '8300'
+*      unicode_string   = lv_data_string
+**     OUT_LEN          =
+*    IMPORTING
+*      xstring_stream   = lv_xstring
+*    EXCEPTIONS
+*      invalid_codepage = 1
+*      invalid_string   = 2
+*      OTHERS           = 3.
+*  IF sy-subrc <> 0.
+*    IF sy-subrc = 1 .
+*
+*    ELSEIF sy-subrc = 2 .
+*      MESSAGE i899(v1) WITH 'Issue with String conversion' .
+*    ENDIF.
+*  ENDIF.
+
+  CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+    EXPORTING
+      text   = lv_data_string
+*     MIMETYPE       = ' '
+*     ENCODING       =
+    IMPORTING
+      buffer = lv_xstring
+    EXCEPTIONS
+      failed = 1
+      OTHERS = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+*--- EOC Radhika 14-10-2022
+
+
+***Xstring to binary
+  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+    EXPORTING
+      buffer     = lv_xstring
+    TABLES
+      binary_tab = lit_binary_content.
+**add attachment
+  CLEAR l_attsubject .
+  CONCATENATE 'Material List' s_date-low 'to' s_date-high INTO l_attsubject.
+* Create Attachment
+  TRY.
+      lo_document->add_attachment( EXPORTING
+                                      i_attachment_type = 'XLS'
+                                      i_attachment_subject = l_attsubject
+                                      i_att_content_hex = lit_binary_content  ).
+    CATCH cx_document_bcs .
+  ENDTRY.
+  TRY.
+      lo_sender = cl_sapuser_bcs=>create( sy-uname ). "sender is the logged in user
+* Set sender to send request
+      TRY .
+          lo_send_request->set_sender(
+                EXPORTING
+                i_sender = lo_sender ).
+        CATCH cx_send_req_bcs.
+      ENDTRY.
+    CATCH cx_address_bcs.
+****Catch exception here
+  ENDTRY.
+**Set recipient Email
+  LOOP AT s_mailid INTO ls_mailid.
+    TRY .
+        lo_recipient = cl_cam_address_bcs=>create_internet_address( ls_mailid-low ).
+      CATCH cx_address_bcs.
+    ENDTRY.
+    TRY.
+        lo_send_request->add_recipient(
+            EXPORTING
+            i_recipient = lo_recipient
+            i_express = 'X' ).
+      CATCH cx_send_req_bcs .
+**Catch exception here
+    ENDTRY.
+  ENDLOOP.
+
+  TRY.
+      CALL METHOD lo_send_request->set_send_immediately
+        EXPORTING
+          i_send_immediately = lv_send.
+    CATCH cx_send_req_bcs .
+**Catch exception here
+  ENDTRY.
+  TRY.
+** Send email
+      lo_send_request->send(
+      EXPORTING
+      i_with_error_screen = 'X' ).
+      COMMIT WORK.
+      IF sy-subrc = 0. "mail sent successfully
+        MESSAGE i899(v1) WITH 'Mail sent successfully ' .
+      ENDIF.
+    CATCH cx_send_req_bcs .
+*catch exception here
+  ENDTRY.
