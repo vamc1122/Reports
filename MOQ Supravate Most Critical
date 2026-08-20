@@ -1,0 +1,1457 @@
+*&---------------------------------------------------------------------*
+*& Report ZSD_CREATE_DEL_DOC_CLAIMPO
+*&**********************************************************************
+*&---------------------------------------------------------------------*
+*& Program Name        : ZSD_CREATE_DEL_DOC_CLAIMPO                    *
+*& Creation Date       : 13-Nov-2024                                   *
+*& Technical           : Vamsi krishna Mudunuri                        *
+*& Application Area    : SD                                            *
+*& Description         : Purpose of the Program to Create Delivery Doc *
+*&                       against Claim Po                              *
+*&=====================================================================*
+*& Date       | TR/Change# | Changedby | Description                   *
+*&=====================================================================*
+*&13-Nov-2024 | SHDK918340 | Vamsi Krishna M | Initial Developemnt     *
+*&---------------------------------------------------------------------*
+REPORT zsd_create_del_doc_claimpo.
+TABLES: zdms_claimpo, mard.
+
+TYPES : BEGIN OF ty_final,
+          sap_so_no     TYPE zdms_claimpo-sap_doc,
+          so_item       TYPE zdms_claimpo-sap_item,
+          chkbx         TYPE c,
+          del_no        TYPE char12,
+          del_item      TYPE zdms_claimpo-del_item,
+          moq_flag      TYPE c,
+          pre_moqflag   TYPE c,
+          green         TYPE c,
+          doc_type      TYPE zdms_claimpo-doc_type,
+          mat_doc       TYPE mblnr,
+          mat_item      TYPE matdoc-zeile,
+          doc_year      TYPE matdoc-gjahr,
+          po_num        TYPE zdms_claimpo-po_num,
+          po_item       TYPE zdms_claimpo-po_item,
+          material      TYPE zdms_claimpo-material,
+          moq           TYPE zdms_claimpo-moq,
+          ship_party    TYPE zdms_claimpo-ship_party,
+          sold_party    TYPE zdms_claimpo-sold_party,
+          required_qty  TYPE zdms_claimpo-qty,
+*          picked_qty    TYPE char8,
+          picked_qty    TYPE zdms_claimpo-qty,
+          short_close   TYPE zdms_claimpo-short,
+          uom           TYPE zdms_claimpo-uom,
+          cancel        TYPE zdms_claimpo-cancell,
+          upd_date      TYPE zdms_claimpo-creat_dt,
+          source_system TYPE zdms_claimpo-source_system,
+          plant         TYPE zdms_claimpo-plant,
+          sloc          TYPE mard-lgort,
+          Repair_typ    TYPE zdms_claimpo-repair,
+          remarks       TYPE char220,
+        END OF ty_final.
+
+TYPES : BEGIN OF ty_final1,
+          ship_party    TYPE zdms_claimpo-ship_party,
+          sap_so_no     TYPE zdms_claimpo-sap_doc,
+          so_item       TYPE zdms_claimpo-sap_item,
+          chkbx         TYPE c,
+          del_no        TYPE char12,
+          del_item      TYPE zdms_claimpo-del_item,
+          moq_flag      TYPE c,
+          pre_moqflag   TYPE c,
+          green         TYPE c,
+          doc_type      TYPE zdms_claimpo-doc_type,
+          mat_doc       TYPE mblnr,
+          mat_item      TYPE matdoc-zeile,
+          doc_year      TYPE matdoc-gjahr,
+          po_num        TYPE zdms_claimpo-po_num,
+          po_item       TYPE zdms_claimpo-po_item,
+          material      TYPE zdms_claimpo-material,
+          moq           TYPE zdms_claimpo-moq,
+          sold_party    TYPE zdms_claimpo-sold_party,
+          required_qty  TYPE zdms_claimpo-qty,
+*          picked_qty    TYPE char8,
+          picked_qty    TYPE zdms_claimpo-qty,
+          short_close   TYPE zdms_claimpo-short,
+          uom           TYPE zdms_claimpo-uom,
+          cancel        TYPE zdms_claimpo-cancell,
+          upd_date      TYPE zdms_claimpo-creat_dt,
+          source_system TYPE zdms_claimpo-source_system,
+          plant         TYPE zdms_claimpo-plant,
+          sloc          TYPE mard-lgort,
+          Repair_typ    TYPE zdms_claimpo-repair,
+          remarks       TYPE char220,
+        END OF ty_final1.
+
+DATA : it_moq TYPE STANDARD TABLE OF ty_final,
+       wa_moq TYPE ty_final.
+
+DATA : it_final TYPE STANDARD TABLE OF ty_final,
+       wa_final TYPE ty_final,
+       gt_final TYPE STANDARD TABLE OF ty_final1,
+       gs_final TYPE ty_final1,
+       it_fcat  TYPE slis_t_fieldcat_alv,
+       wa_fcat  TYPE slis_fieldcat_alv.
+DATA : wa_layout  TYPE slis_layout_alv.
+DATA: it_claimpo TYPE TABLE OF zdms_claimpo.
+DATA : it_item    TYPE TABLE OF bapi2017_gm_item_create,
+       wa_item    TYPE bapi2017_gm_item_create,
+       it_ser     TYPE TABLE OF bapi2017_gm_serialnumber,
+       wa_ser     TYPE bapi2017_gm_serialnumber,
+       wa_head    LIKE bapi2017_gm_head_01,
+       wa_code    LIKE bapi2017_gm_code,
+       it_return  TYPE TABLE OF bapiret2,
+       head       LIKE bapi2017_gm_head_ret,
+       it_rawdata TYPE truxs_t_text_data.
+DATA: mat_doc  TYPE bapi2017_gm_head_ret-mat_doc,
+      mat_year TYPE bapi2017_gm_head_ret-doc_year.
+
+DATA : it_glcc TYPE STANDARD TABLE OF zsfdms_warccgl,
+       wa_glcc TYPE zsfdms_warccgl.
+
+DATA: lv_number TYPE char30,
+      lv_return TYPE c,
+      lv_doctyp TYPE char2,
+      lv_deltyp TYPE char2.
+
+DATA : lv_lmonth TYPE sy-datum.
+
+DATA : flag TYPE c.
+DATA : lv_itmser TYPE mblpo.
+DATA : lv_matitem TYPE mblpo.
+DATA : lv_itm TYPE numc10.
+DATA: ls_claimdlv TYPE zdms_claimdlv.
+DATA: it_delivery TYPE TABLE OF zdms_claimdlv.
+DATA: wa_delivery TYPE zdms_claimdlv.
+DATA: ls_excgrn TYPE zdms_claimgrn.
+DATA: ls_sfgrn TYPE zsfdms_claimgrn.
+DATA: ls_claimpo TYPE zdms_claimpo.
+DATA: lv_qty TYPE zdms_claimpo-qty.
+DATA: lv_move TYPE bwart.
+DATA ls_ref1 TYPE REF TO cl_gui_alv_grid.
+DATA e_grid TYPE REF TO cl_gui_alv_grid.
+DATA it_final1 TYPE TABLE OF ty_final.
+DATA lv_qtychk TYPE c.
+DATA lv_short_close TYPE c.
+DATA lv_count TYPE char3.
+DATA hdr_short TYPE c.
+DATA fw_flag TYPE c.
+DATA dn_re TYPE c.
+DATA dn_fw TYPE c.
+DATA re_flag TYPE c.
+DATA lv_moq TYPE zdms_claimpo-moq.
+DATA lv_pick TYPE zdms_claimpo-moq.
+DATA : it_dlv TYPE TABLE OF zdms_claimdlv.
+DATA : it_dlv_pc TYPE TABLE OF zdms_claimdlv.
+DATA : it_srl TYPE TABLE OF zdms_claimsrl.
+DATA : wa_srl TYPE zdms_claimsrl.
+DATA: lt_return TYPE STANDARD TABLE OF ddshretval.
+DATA: button TYPE char10.
+
+
+SELECTION-SCREEN: BEGIN OF BLOCK b WITH FRAME TITLE TEXT-002.
+  SELECT-OPTIONS : s_soldto FOR zdms_claimpo-sold_party,
+                   s_pono FOR zdms_claimpo-po_num,
+                   s_sono FOR zdms_claimpo-sap_doc,
+                   s_cretdt FOR zdms_claimpo-creat_dt OBLIGATORY,
+                   s_plant FOR zdms_claimpo-plant NO INTERVALS,
+                   s_doctyp FOR zdms_claimpo-doc_type NO-DISPLAY,
+                   r_so_no FOR zdms_claimpo-sap_doc NO-DISPLAY.
+*                  s_sloc  FOR mard-lgort NO INTERVALS no-EXTENSION MODIF ID GRY.
+  PARAMETERS:      p_sloc  TYPE mard-lgort OBLIGATORY MODIF ID gry.
+SELECTION-SCREEN END OF BLOCK b.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+  PARAMETERS : r_rr     RADIOBUTTON GROUP rg1,
+               r_sn     RADIOBUTTON GROUP rg1,
+               r_dn     RADIOBUTTON GROUP rg1,
+*              r_fn     RADIOBUTTON GROUP rg1 ,
+               r_report RADIOBUTTON GROUP rg1 DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b1.
+
+INITIALIZATION.
+  SELECT low FROM tvarvc INTO TABLE @DATA(it_plant) WHERE name = 'ZSFDMS_WARPLANT'.
+  SELECT low FROM tvarvc INTO TABLE @DATA(it_sloc) WHERE name = 'ZSFDMS_WARSLOC'.
+  DELETE it_plant WHERE low = ' '.
+  IF it_plant IS NOT INITIAL.
+    LOOP AT it_plant INTO DATA(wa_plant).
+      IF wa_plant-low IS NOT INITIAL.
+        s_plant-sign = 'I'.
+        s_plant-option = 'EQ'.
+        s_plant-low = wa_plant-low.
+        APPEND s_plant.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  IF it_sloc IS NOT INITIAL.
+    LOOP AT it_sloc INTO DATA(wa_sloc).
+      p_sloc = wa_sloc-low.
+    ENDLOOP.
+  ENDIF.
+
+  CALL FUNCTION 'HRAR_SUBTRACT_MONTH_TO_DATE'
+    EXPORTING
+      date                 = sy-datum
+    IMPORTING
+      date_minus_one_month = lv_lmonth.
+
+  s_cretdt-sign = 'I'.
+  s_cretdt-option = 'EQ'.
+  s_cretdt-low = lv_lmonth.
+  s_cretdt-high = sy-datum.
+  APPEND s_cretdt.
+
+
+AT SELECTION-SCREEN ON p_sloc.
+  IF p_sloc IS NOT INITIAL.
+    IF it_sloc IS NOT INITIAL.
+      READ TABLE it_sloc INTO DATA(wa_sloc) WITH KEY low = p_sloc.
+      IF sy-subrc NE 0.
+        MESSAGE 'Given Storage Location is Not Maintained In the Tvarv Table' TYPE 'E'.
+      ENDIF.
+    ELSE.
+      MESSAGE 'Please Maintain The Storage Location in Tvarv Table' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+
+AT SELECTION-SCREEN ON s_plant.
+  IF s_plant IS NOT INITIAL AND it_plant IS NOT INITIAL.
+    LOOP AT s_plant.
+      READ TABLE it_plant INTO DATA(wa_plant) WITH KEY low = s_plant-low.
+      IF sy-subrc NE 0.
+        MESSAGE 'Given Plant is Not Maintained In the Tvarv Table' TYPE 'E'.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    MESSAGE 'Kindly Maintain The Plant in Tvarv Table' TYPE 'E'.
+  ENDIF.
+
+*AT SELECTION-SCREEN OUTPUT.
+*  LOOP AT SCREEN.
+*    IF screen-group1 = 'GRY'.
+*      screen-input = '0'.
+*      MODIFY SCREEN.
+*    ENDIF.
+*  ENDLOOP.
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_plant-low.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'WERKS'    " Name of field in VALUE_TAB
+      value_org       = 'S'        " Value return: C: cell by cell, S: structured
+    TABLES
+      value_tab       = it_plant  " Table of values: entries cell by cell
+      return_tab      = lt_return  " Return the selected value
+    EXCEPTIONS
+      parameter_error = 1          " Incorrect parameter
+      no_values_found = 2          " No values found
+      OTHERS          = 3.
+
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_sloc.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'LGORT'    " Name of field in VALUE_TAB
+      value_org       = 'S'        " Value return: C: cell by cell, S: structured
+    TABLES
+      value_tab       = it_sloc  " Table of values: entries cell by cell
+      return_tab      = lt_return  " Return the selected value
+    EXCEPTIONS
+      parameter_error = 1          " Incorrect parameter
+      no_values_found = 2          " No values found
+      OTHERS          = 3.
+
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+
+
+START-OF-SELECTION.
+
+  PERFORM process_data.
+
+END-OF-SELECTION.
+  IF it_final IS NOT INITIAL.
+    PERFORM display_data.
+  ELSE.
+    MESSAGE 'No Data Found For The Given Input Selection' TYPE 'I'.
+    LEAVE TO LIST-PROCESSING.
+  ENDIF.
+
+
+
+*&---------------------------------------------------------------------*
+*& Form process_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM process_data.
+  CLEAR: lv_doctyp.
+
+  IF r_rr IS NOT INITIAL.
+    SELECT * FROM zdms_claimpo INTO TABLE it_claimpo WHERE doc_type = 'RR'
+                                                       AND sap_doc IN s_sono
+                                                       AND po_num IN s_pono
+                                                       AND plant IN s_plant
+                                                       AND creat_dt IN s_cretdt
+                                                       AND status_item NE 'C'
+                                                       AND short NE 'X'
+                                                       AND sold_party IN s_soldto.
+    lv_doctyp = 'RR'.
+  ELSEIF r_sn IS NOT INITIAL.
+    SELECT * FROM zdms_claimpo INTO TABLE it_claimpo WHERE doc_type = 'SN'
+                                                       AND sap_doc IN s_sono
+                                                       AND po_num IN s_pono
+                                                       AND plant IN s_plant
+                                                       AND creat_dt IN s_cretdt
+*                                                       AND status_item NE 'C'
+                                                       AND short NE 'X'
+                                                       AND sold_party IN s_soldto.
+
+
+    lv_doctyp = 'SN'.
+  ELSEIF r_dn IS NOT INITIAL.
+    SELECT * FROM zdms_claimpo INTO TABLE it_claimpo WHERE doc_type = 'DN'
+                                                      AND sap_doc IN s_sono
+                                                       AND po_num IN s_pono
+                                                       AND plant IN s_plant
+                                                       AND creat_dt IN s_cretdt
+                                                       AND status_item NE 'C'
+                                                       AND short NE 'X'
+                                                       AND sold_party IN s_soldto.
+
+
+    lv_doctyp = 'DN'.
+
+  ELSEIF r_report = 'X'.
+    SELECT * FROM zdms_claimpo INTO TABLE it_claimpo WHERE sap_doc IN s_sono
+                                                       AND po_num IN s_pono
+                                                       AND plant IN s_plant
+                                                       AND creat_dt IN s_cretdt
+                                                       AND sold_party IN s_soldto.
+
+  ENDIF.
+
+  IF it_claimpo  IS NOT INITIAL.
+    LOOP AT it_claimpo INTO DATA(wa_claimpo).
+
+      wa_final-chkbx          = 'X'.
+      wa_final-sap_so_no      = wa_claimpo-sap_doc.
+      wa_final-so_item        = wa_claimpo-sap_item.
+      wa_final-plant          = wa_claimpo-plant.
+      wa_final-moq            = wa_claimpo-moq.
+      wa_final-short_close    = ' '.
+      wa_final-repair_typ     = wa_claimpo-repair.
+      wa_final-sloc           = p_sloc.
+      wa_final-po_num         = wa_claimpo-po_num.
+      wa_final-po_item        = wa_claimpo-po_item.
+      wa_final-material       = wa_claimpo-material.
+      wa_final-ship_party     = wa_claimpo-ship_party.
+      wa_final-sold_party     = wa_claimpo-sold_party.
+      wa_final-required_qty   = wa_claimpo-qty.
+      wa_final-picked_qty     = wa_claimpo-qty.
+      wa_final-uom            = wa_claimpo-uom.
+      wa_final-source_system  = wa_claimpo-source_system.
+      APPEND wa_final TO it_final.
+      CLEAR wa_final.
+    ENDLOOP.
+
+    SORT it_final BY ship_party sap_so_no so_item.
+    IF lv_doctyp = 'DN' OR lv_doctyp = 'SN'.
+      SELECT * FROM zdms_claimdlv INTO  TABLE @it_delivery
+        FOR ALL ENTRIES IN @it_final
+        WHERE sap_so_no = @it_final-sap_so_no
+        AND sap_item = @it_final-so_item.
+      IF it_delivery IS NOT INITIAL.
+
+        IF lv_doctyp = 'DN'.
+          LOOP AT it_delivery INTO wa_delivery WHERE doc_type = 'RE'.
+            DELETE it_final WHERE sap_so_no = wa_delivery-sap_so_no AND so_item = wa_delivery-sap_item.
+            CLEAR: wa_delivery.
+          ENDLOOP.
+        ENDIF.
+        IF lv_doctyp = 'SN'.
+          CLEAR: dn_re,dn_fw.
+          LOOP AT it_delivery INTO wa_delivery.
+            IF wa_delivery-doc_type = 'RE'.
+              dn_re = 'X'.
+            ELSEIF wa_delivery-doc_type = 'FW'.
+              dn_fw = 'X'.
+            ENDIF.
+            IF dn_re = 'X' AND dn_fw = 'X'.
+              DELETE it_final WHERE sap_so_no = wa_delivery-sap_so_no AND so_item = wa_delivery-sap_item.
+            ENDIF.
+
+            CLEAR: wa_delivery.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+
+**&---------------------------------------------------------------------*
+**& Form display_data
+**&---------------------------------------------------------------------*
+**& text
+**&---------------------------------------------------------------------*
+**& -->  p1        text
+**& <--  p2        text
+**&---------------------------------------------------------------------*
+FORM display_data.
+
+  wa_fcat-fieldname = 'CHKBX'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-checkbox = 'X'.
+  wa_fcat-seltext_l = 'CHK'.
+  wa_fcat-edit = 'X'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'DEL_NO'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Delivery Number'.
+  wa_fcat-outputlen = 12.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'DEL_ITEM' .
+  wa_fcat-tabname = 'IT_FINAL' .
+  wa_fcat-seltext_l =  'Delivery Item'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+*  wa_fcat-fieldname = 'DOC_TYPE' .
+*  wa_fcat-tabname = 'IT_FINAL' .
+*  wa_fcat-seltext_l = 'Doc Type'.
+*  APPEND wa_fcat TO it_fcat .
+*  CLEAR wa_fcat .
+
+  wa_fcat-fieldname = 'SHIP_PARTY'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Branch Code'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'SAP_SO_NO' .
+  wa_fcat-tabname = 'IT_FINAL' .
+  wa_fcat-seltext_l = 'SAP SO Number'.
+  wa_fcat-outputlen = 12.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat .
+
+  wa_fcat-fieldname = 'SO_ITEM' .
+  wa_fcat-tabname = 'IT_FINAL' .
+  wa_fcat-seltext_l = 'SO Item'.
+  APPEND wa_fcat TO it_fcat .
+  CLEAR wa_fcat .
+
+  wa_fcat-fieldname = 'MAT_DOC'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Material Document'.
+  wa_fcat-outputlen = 12.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat .
+
+  wa_fcat-fieldname = 'MAT_ITEM'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Item'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'DOC_YEAR'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Doc Year'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+
+  wa_fcat-fieldname = 'PO_NUM'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'PO Number'.
+  wa_fcat-outputlen = 18.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'PO_ITEM'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'PO Item'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'MATERIAL'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Material'.
+  wa_fcat-outputlen = 18.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'REQUIRED_QTY'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Required Qty'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat .
+  IF r_report NE 'X'.
+    IF r_sn = 'X' OR r_dn = 'X'.
+      wa_fcat-fieldname = 'PICKED_QTY'.
+      wa_fcat-tabname = 'IT_FINAL'.
+      wa_fcat-seltext_l = 'Picked Qty'.
+      wa_fcat-edit  =  ''.
+      APPEND wa_fcat TO it_fcat.
+      CLEAR wa_fcat.
+    ELSE.
+      wa_fcat-fieldname = 'PICKED_QTY'.
+      wa_fcat-tabname = 'IT_FINAL'.
+      wa_fcat-seltext_l = 'Picked Qty'.
+      wa_fcat-edit  =  'X'.
+      wa_fcat-ref_fieldname = 'MEINS'.
+      wa_fcat-datatype = 'QUAN'.
+      wa_fcat-datatype = 'UNIT'.
+      APPEND wa_fcat TO it_fcat.
+      CLEAR wa_fcat.
+    ENDIF.
+  ENDIF.
+
+  wa_fcat-fieldname = 'MOQ'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'MOQ'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+  IF r_rr = 'X'.
+    wa_fcat-fieldname = 'SHORT_CLOSE'.
+    wa_fcat-tabname = 'IT_FINAL'.
+    wa_fcat-seltext_l = 'Short Close'.
+    wa_fcat-checkbox = 'X'.
+    wa_fcat-edit = 'X'.
+    wa_fcat-outputlen = 5.
+
+
+    APPEND wa_fcat TO it_fcat.
+    CLEAR wa_fcat.
+  ENDIF.
+
+  wa_fcat-fieldname = 'UOM'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'UOM'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'PLANT'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Plant'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'REPAIR_TYP'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Repair Type'.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = 'CANCEL'.
+  wa_fcat-tabname = 'IT_FINAL' .
+  wa_fcat-seltext_l = 'Cancelled'.
+  APPEND wa_fcat TO it_fcat .
+  CLEAR wa_fcat .
+
+  wa_fcat-fieldname = 'UPD_DATE'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Updated Date'.
+  APPEND wa_fcat TO it_fcat.
+
+  wa_fcat-fieldname = 'MOQ_FLAG'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'MOQ Flag'.
+  APPEND wa_fcat TO it_fcat.
+
+  wa_fcat-fieldname = 'REMARKS'.
+  wa_fcat-tabname = 'IT_FINAL'.
+  wa_fcat-seltext_l = 'Remarks'.
+  wa_fcat-outputlen = 50.
+  APPEND wa_fcat TO it_fcat.
+  CLEAR wa_fcat.
+
+  wa_layout-colwidth_optimize = ''.
+  wa_layout-zebra             = 'X'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      it_fieldcat              = it_fcat
+      is_layout                = wa_layout
+      i_callback_pf_status_set = 'PF_STATUS'
+      i_callback_user_command  = 'USR_COMMAND'
+      i_save                   = 'A'
+    TABLES
+      t_outtab                 = it_final
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.
+
+
+
+
+
+FORM pf_status USING rt_extab TYPE slis_t_extab    ##CALLED.
+
+  IF r_rr IS NOT INITIAL.
+    APPEND 'REVERSE' TO rt_extab.
+  ELSEIF r_sn IS NOT INITIAL.
+    APPEND 'VIEW_MOQ' TO rt_extab.
+  ELSEIF r_dn IS NOT INITIAL.
+    APPEND 'CREATE' TO rt_extab.
+    APPEND 'VIEW_MOQ' TO rt_extab.
+  ELSEIF r_report IS NOT INITIAL.
+    APPEND 'CREATE' TO rt_extab.
+    APPEND 'REVERSE' TO rt_extab.
+    APPEND 'VIEW_MOQ' TO rt_extab.
+*    APPEND 'REFRESH' TO rt_extab.
+  ENDIF.
+  SET PF-STATUS 'CREATE' EXCLUDING rt_extab.
+ENDFORM.
+
+FORM usr_command  USING r_ucomm LIKE sy-ucomm       ##CALLED
+                                  rs_selfield TYPE slis_selfield.
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = ls_ref1.
+
+  CALL METHOD ls_ref1->check_changed_data.
+
+
+  CASE r_ucomm.
+
+    WHEN 'CREATE'.
+      BREAK funcshd_abp5.
+      button = 'CREATE'.
+      IF lv_doctyp = 'SN' OR lv_doctyp = 'RR'.
+        REFRESH :it_final1.
+        it_final1 = it_final.
+        DELETE it_final1 WHERE chkbx NE 'X'.
+        " To fetch the delivery table comapring so number and item to check add all no.of qty in item level
+        SELECT * FROM zdms_claimDLV INTO TABLE it_dlv_pc FOR ALL ENTRIES IN it_final1
+           WHERE sfdms_number = it_final1-po_num AND sfdms_item = it_final1-po_item.
+        IF lv_doctyp = 'SN'.
+          SELECT * FROM zdms_claimDLV INTO TABLE it_dlv FOR ALL ENTRIES IN it_final1
+             WHERE sfdms_number = it_final1-po_num AND sfdms_item = it_final1-po_item.
+        ENDIF.
+        lv_move = '201'.
+        lv_deltyp = 'FW'.
+
+        LOOP AT it_final INTO wa_final WHERE chkbx = 'X'.
+          IF wa_final-moq_flag = 'X'.
+            CONTINUE.
+          ENDIF.
+
+          wa_final-remarks = ''.
+          MODIFY it_final FROM wa_final TRANSPORTING remarks
+              WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+
+          "" Minimum Order Quantity check Comparing Shiptoparty(branch code) and with same material.
+*          IF lv_doctyp = 'RR'.
+          PERFORM moq_validation.
+*            IF wa_final-moq GT 1.
+*              REFRESH : it_moq.
+*              CLEAR: lv_moq.
+*              MOVE-CORRESPONDING it_final TO it_moq.
+*              DELETE it_moq WHERE sold_party NE wa_final-sold_party.
+*              DELETE it_moq WHERE material NE wa_final-material.
+*              IF it_moq IS NOT INITIAL.
+*                SORT it_moq BY sold_party material.
+*                LOOP AT it_moq INTO DATA(wa_moq).
+*                  IF wa_moq IS NOT INITIAL.
+*                    lv_moq = lv_moq + wa_moq-picked_qty.
+*                  ENDIF.
+*                  CLEAR: wa_moq.
+*                ENDLOOP.
+*              ENDIF.
+*              IF lv_moq LT wa_final-moq.
+*                wa_final-remarks = 'Picked Qty is less than MOQ'.
+*                MODIFY it_final FROM wa_final TRANSPORTING remarks
+*                    WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+*                CONTINUE.
+*              ENDIF.
+*            ENDIF.
+*            "" Minimum Order Quantity check Comparing Shiptoparty(branch code) and with same material.
+*
+*
+*            "Check Picked qty mateched or not
+*            IF wa_final-picked_qty IS NOT INITIAL.
+*              CLEAR: lv_pick.
+*
+*              READ TABLE it_dlv_pc INTO DATA(wa_dlpc) WITH KEY sfdms_number = wa_final-po_num  sfdms_item = wa_final-po_item.
+*              IF sy-subrc = 0.
+*                LOOP AT it_dlv_pc INTO DATA(wa_dlv_pc) WHERE sfdms_number = wa_final-po_num AND sfdms_item = wa_final-po_item.
+*                  lv_pick  = lv_pick + wa_dlv_pc-qty.
+*                  CLEAR: wa_dlv_pc.
+*                ENDLOOP.
+*                lv_pick = wa_final-required_qty - lv_pick.
+*                IF wa_final-picked_qty GT lv_pick.
+*                  wa_final-remarks = 'Exceded the Required Qty'.
+*                  MODIFY it_final FROM wa_final TRANSPORTING remarks
+*                      WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+*                  CONTINUE.
+*                ENDIF.
+*              ENDIF.
+*            ENDIF.
+*          ENDIF.
+
+          " To check the Doc type RE else throw message
+          IF lv_doctyp = 'SN'.
+
+            CLEAR: re_flag,fw_flag.
+            LOOP AT it_dlv  INTO DATA(wa_check) WHERE sfdms_number = wa_final-po_num AND sfdms_item = wa_final-po_item.
+              IF wa_check-doc_type = 'RE'.
+                re_flag = 'X'.
+              ELSEIF wa_check-doc_type = 'FW'.
+                fw_flag = 'X'.
+              ENDIF.
+              CLEAR: wa_check.
+            ENDLOOP.
+
+            IF re_flag = 'X' AND fw_flag = 'X'.
+              wa_final-remarks = 'Forward Already Done!'.
+              MODIFY it_final FROM wa_final TRANSPORTING remarks
+                WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+              CONTINUE.
+            ENDIF.
+
+
+            READ TABLE it_dlv INTO DATA(wa_dlv) WITH KEY sfdms_number = wa_final-po_num sfdms_item = wa_final-po_item.
+            IF sy-subrc = 0.
+              IF wa_dlv-doc_type NE 'RE'.
+                lv_qtychk = 'X'.
+                wa_final-remarks = 'Document Type RE Only Allow For The Create Delivery'.
+                MODIFY it_final FROM wa_final TRANSPORTING remarks
+                  WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+                CONTINUE.
+              ENDIF.
+            ELSE.
+              wa_final-remarks = 'Document Type RE Only Allow For The Create Delivery'.
+              MODIFY it_final FROM wa_final TRANSPORTING remarks
+                WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+          CLEAR: wa_final,wa_dlv.
+        ENDLOOP.
+
+
+        SORT gt_final BY ship_party sap_so_no so_item.
+        DELETE ADJACENT DUPLICATES FROM gt_final COMPARING ship_party sap_so_no so_item.
+**         create delivery forward case
+        PERFORM del_creation.
+
+        IF lv_doctyp = 'RR'.
+        PERFORM moq_delivery.
+          LOOP AT gt_final INTO DATA(gs_final).
+            MOVE-CORRESPONDING gs_final TO wa_final.
+            APPEND wa_final TO it_final.
+            CLEAR: wa_final,gs_final.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+      REFRESH : it_dlv,it_dlv_pc.
+
+
+
+    WHEN 'REVERSE'.
+      BREAK funcshd_abp5.
+      button = 'REVERSE'.
+      IF lv_doctyp = 'DN'.
+        REFRESH : it_delivery.
+        SELECT * FROM zdms_claimdlv INTO  TABLE @it_delivery
+          FOR ALL ENTRIES IN @it_final
+          WHERE sap_so_no = @it_final-sap_so_no
+          AND sap_item = @it_final-so_item
+          AND doc_type = 'RE'.
+
+      ENDIF.
+
+
+      IF lv_doctyp = 'SN' OR lv_doctyp = 'DN'.
+        REFRESH :it_final1.
+        it_final1 = it_final.
+        DELETE it_final1 WHERE chkbx NE 'X'.
+        IF lv_doctyp = 'SN'.
+          SELECT * FROM zdms_claimDLV INTO TABLE it_dlv FOR ALL ENTRIES IN it_final1
+             WHERE sfdms_number = it_final1-po_num AND sfdms_item = it_final1-po_item.
+        ENDIF.
+
+        lv_move = '202'.
+        lv_deltyp = 'RE'.
+        LOOP AT it_final INTO wa_final WHERE chkbx = 'X'.
+
+          wa_final-remarks = ''.
+          MODIFY it_final FROM wa_final TRANSPORTING remarks
+              WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+        READ TABLE it_delivery INTO wa_delivery WITH KEY sap_so_no = wa_final-sap_so_no sap_item = wa_final-so_item.
+        if sy-subrc = 0.
+          wa_final-remarks = 'Document is Already Reversed'.
+          MODIFY it_final FROM wa_final TRANSPORTING remarks
+              WHERE sap_so_no = wa_delivery-sap_so_no AND so_item = wa_delivery-sap_item.
+        ENDIF.
+
+
+          IF wa_final-picked_qty LE wa_final-required_qty.
+            CLEAR :wa_final-remarks.
+          ELSE.
+            lv_qtychk = 'X'.
+            wa_final-remarks = 'Required Qty is More Than Picked Qty'.
+          ENDIF.
+          MODIFY it_final FROM wa_final TRANSPORTING remarks
+              WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+
+          IF lv_doctyp = 'SN'.
+            CLEAR: re_flag,fw_flag.
+            LOOP AT it_dlv  INTO wa_check WHERE sfdms_number = wa_final-po_num AND sfdms_item = wa_final-po_item.
+              IF wa_check-doc_type = 'RE'.
+                re_flag = 'X'.
+
+              ELSEIF wa_check-doc_type = 'FW'.
+                fw_flag = 'X'.
+              ENDIF.
+              CLEAR: wa_check.
+            ENDLOOP.
+
+            IF re_flag = 'X' AND fw_flag = 'X'.
+              wa_final-remarks = 'Reverse Already Done!'.
+              MODIFY it_final FROM wa_final TRANSPORTING remarks
+                WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+              CONTINUE.
+            ENDIF.
+
+
+            READ TABLE it_dlv INTO wa_dlv WITH KEY sfdms_number = wa_final-po_num sfdms_item = wa_final-po_item.
+            IF sy-subrc = 0.
+              lv_qtychk = 'X'.
+              wa_final-remarks = 'GRN Reversal is Not Done!!'.
+              MODIFY it_final FROM wa_final TRANSPORTING remarks
+                WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+*              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          CLEAR: wa_final,wa_dlv.
+        ENDLOOP.
+
+
+        "create delivery reverse
+        PERFORM del_creation.
+      ENDIF.
+
+    WHEN 'VIEW_MOQ'.
+
+
+
+*      REFRESH :it_claimpo,it_final,it_fcat.
+*
+*      PERFORM process_data.
+*
+*      IF it_final IS NOT INITIAL.
+*        PERFORM display_data.
+*      ELSE.
+*        MESSAGE 'No Data Found For The Given Input Selection' TYPE 'I'.
+*        LEAVE TO LIST-PROCESSING.
+*      ENDIF.
+    WHEN '&BACK'.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    WHEN '&EXIT'.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    WHEN '&CNC'.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+  ENDCASE.
+
+
+  rs_selfield-refresh = 'X'.
+  CLEAR :  lv_move,lv_deltyp,button.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form del_Creation
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM del_Creation.
+
+  REFRESH :it_glcc.
+  SELECT * FROM zsfdms_warccgl INTO TABLE it_glcc WHERE plant IN s_plant.
+
+  IF it_final IS NOT INITIAL.
+    DATA(lt_final) = it_final.
+    DELETE it_final WHERE chkbx IS INITIAL.
+    DELETE it_final WHERE remarks IS NOT INITIAL.
+    DELETE lt_final WHERE remarks IS INITIAL AND chkbx IS NOT INITIAL.
+    DELETE it_final WHERE moq_flag IS NOT INITIAL.
+
+    SELECT * FROM marc INTO TABLE @DATA(it_marc)
+      FOR ALL ENTRIES IN @it_final
+      WHERE matnr = @it_final-material
+      AND werks = @it_final-plant
+      AND sernp NE ''.
+
+
+    SORT it_final BY sap_so_no so_item.
+    LOOP AT it_final INTO wa_final WHERE chkbx = 'X'.
+      "" for MOQ
+
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = wa_final-material
+        IMPORTING
+          output = wa_final-material.
+      READ TABLE it_glcc INTO wa_glcc WITH KEY plant = wa_final-plant repair_type = wa_final-repair_typ.
+      IF sy-subrc = 0.
+        wa_item-gl_account = wa_glcc-gl_account.
+        wa_item-costcenter = wa_glcc-cost_center.
+      ENDIF.
+
+      lv_itmser = lv_itmser + 1.
+      wa_item-material   = wa_final-material.
+      wa_item-ref_doc    = wa_final-sap_so_no.
+      CONCATENATE wa_final-sap_so_no wa_final-so_item INTO wa_item-item_text SEPARATED BY '/'.
+      wa_item-plant      = wa_final-plant.
+      wa_item-stge_loc   = wa_final-sloc.
+      wa_item-move_type  = lv_move.             ""Dynamically 201 0r 202
+      wa_item-entry_qnt  = wa_final-picked_qty.
+      wa_item-entry_uom  = wa_final-uom.
+      APPEND wa_item TO it_item.
+
+      IF button = 'REVERSE'.
+        READ TABLE it_marc INTO DATA(wa_marc) WITH KEY matnr = wa_final-material.
+        IF sy-subrc = 0.
+          READ TABLE it_claimpo INTO DATA(wa_po) WITH KEY sap_doc = wa_final-sap_so_no sap_item = wa_final-so_item.
+          IF sy-subrc = 0.
+
+            SELECT * FROM zdms_claimsrl INTO TABLE it_srl WHERE del_no = wa_po-del_no AND del_item = wa_po-del_item.
+            IF it_srl IS NOT INITIAL.
+              LOOP AT it_srl INTO wa_srl.
+                wa_ser-serialno = wa_srl-ser_no.
+                wa_ser-matdoc_itm = lv_itmser.
+                APPEND wa_ser TO it_ser.
+              ENDLOOP.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      AT END OF sap_so_no.
+        flag = 'X'.
+      ENDAT.
+
+      IF flag = 'X'.
+        wa_head-pstng_date = sy-datum.
+        wa_head-doc_date   = sy-datum.
+        wa_head-header_txt = wa_final-po_num.
+        wa_code-gm_code    = '03'.
+*        IF button = 'REVERSE'.
+        CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+          EXPORTING
+            goodsmvt_header       = wa_head
+            goodsmvt_code         = wa_code
+          IMPORTING
+            goodsmvt_headret      = head
+            materialdocument      = mat_doc
+            matdocumentyear       = mat_year
+          TABLES
+            goodsmvt_item         = it_item
+            goodsmvt_serialnumber = it_ser
+            return                = it_return.
+*        ENDIF.
+        IF it_return IS INITIAL.
+          CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+            EXPORTING
+              wait = 'X'.
+          CALL FUNCTION 'NUMBER_GET_NEXT'
+            EXPORTING
+              nr_range_nr             = '01'
+              object                  = 'ZSF_DLV'
+              quantity                = '1'
+            IMPORTING
+              number                  = lv_number
+              returncode              = lv_return
+            EXCEPTIONS
+              interval_not_found      = 1
+              number_range_not_intern = 2
+              object_not_found        = 3
+              quantity_is_0           = 4
+              quantity_is_not_1       = 5
+              interval_overflow       = 6
+              buffer_overflow         = 7
+              OTHERS                  = 8.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+          ENDIF.
+
+          IF lv_number IS NOT INITIAL.
+            CONCATENATE lv_doctyp lv_number INTO lv_number.
+            CONDENSE lv_number.
+            SELECT mblnr, zeile,matnr FROM matdoc INTO TABLE @DATA(it_matdoc) WHERE mblnr = @mat_doc.
+            CLEAR: lv_itm,lv_matitem.
+            LOOP AT it_final INTO DATA(wa_final1) WHERE sap_so_no = wa_final-sap_so_no AND chkbx = 'X'.
+              lv_itm = lv_itm + 10.
+              lv_matitem = lv_matitem + 1.
+              CONDENSE  lv_itm.
+              wa_final1-del_no = lv_number.
+              wa_final1-del_item = lv_itm.
+              wa_final1-mat_doc  = mat_doc.
+              READ TABLE it_matdoc INTO DATA(wa_matdoc) WITH KEY zeile = lv_matitem.
+              wa_final1-mat_item = wa_matdoc-zeile.
+              wa_final1-doc_year = mat_year.
+              wa_final1-doc_type = lv_deltyp.  " dynamically  create(FW) reverse (RE)
+              wa_final1-upd_date = sy-datum.
+              wa_final1-remarks  = 'Created Successfully'.
+              MODIFY it_final FROM wa_final1 TRANSPORTING del_no
+                                                          del_item
+                                                          mat_doc
+                                                          mat_item
+                                                          doc_year
+                                                          doc_type
+                                                          upd_date
+                                                          remarks
+              WHERE sap_so_no = wa_final1-sap_so_no AND so_item = wa_final1-so_item.
+              ls_claimdlv-del_no          = wa_final1-del_no.
+              ls_claimdlv-del_item        = wa_final1-del_item.
+              ls_claimdlv-doc_type        = wa_final1-doc_type.
+              ls_claimdlv-plant           = wa_final1-plant.
+              ls_claimdlv-ship_party      = wa_final1-ship_party.
+              ls_claimdlv-repair          = wa_final1-repair_typ.
+              ls_claimdlv-sap_so_no       = wa_final1-sap_so_no.
+              ls_claimdlv-sap_item        = wa_final1-so_item.
+              ls_claimdlv-mat_doc         = wa_final1-mat_doc.
+              ls_claimdlv-mdoc_item       = wa_final1-mat_item.
+              ls_claimdlv-doc_year        = wa_final1-doc_year.
+              ls_claimdlv-material        = wa_final1-material.
+              ls_claimdlv-qty             = wa_final1-picked_qty.
+              ls_claimdlv-uom             = wa_final1-uom.
+*              ls_claimdlv-cancel          = wa_final1-cancel.
+              ls_claimdlv-upd_date        = sy-datum.
+              ls_claimdlv-creat_tm        = sy-uzeit.
+              ls_claimdlv-creat_by        = sy-uname.
+              ls_claimdlv-sfdms_number    = wa_final1-po_num.
+              ls_claimdlv-sfdms_item    = wa_final1-po_item.
+              ls_claimdlv-source_system   = wa_final1-source_system.
+
+              MODIFY zdms_claimdlv FROM ls_claimdlv.
+              IF sy-subrc = 0.
+                COMMIT WORK AND WAIT.
+              ENDIF.
+
+
+              SELECT * FROM zdms_claimdlv INTO TABLE @DATA(it_short) WHERE sfdms_number = @wa_final1-po_num  AND sfdms_item = @wa_final1-po_item.
+              IF it_short IS NOT INITIAL.
+                CLEAR: lv_pick.
+                READ TABLE it_short INTO DATA(wa_short) WITH KEY sfdms_number = wa_final1-po_num  sfdms_item = wa_final1-po_item.
+                IF sy-subrc = 0.
+                  LOOP AT it_short INTO wa_short WHERE sfdms_number = wa_final1-po_num AND sfdms_item = wa_final1-po_item.
+                    lv_pick  = lv_pick + wa_short-qty.
+                    CLEAR: wa_short.
+                  ENDLOOP.
+                  lv_pick = wa_final1-required_qty - lv_pick.
+                  IF lv_pick = 0.  "complete
+                    ls_claimpo-status_item = 'C'.
+                  ELSEIF lv_pick GT 0. " partial
+                    hdr_short = 'X'.
+                    ls_claimpo-status_item = 'P'.
+                  ELSE.
+                    ls_claimpo-status_item = 'C'.
+                  ENDIF.
+                  "Item Level PO table Update
+                  UPDATE  zdms_claimpo  SET  status_item = ls_claimpo-status_item short = ls_claimpo-short
+                  WHERE sap_doc = wa_final1-sap_so_no AND sap_item = wa_final1-so_item.
+                  IF sy-subrc = 0.
+                    COMMIT WORK AND WAIT.
+                  ENDIF.
+
+                ENDIF.
+              ENDIF.
+
+              AT END OF sap_so_no.
+                IF hdr_short = 'X'.
+                  ls_claimpo-status_hdr = 'P'.
+                ELSE.
+                  ls_claimpo-status_hdr = 'C'.
+                ENDIF.
+                " Header Level PO table Update
+                UPDATE  zdms_claimpo  SET status_hdr = ls_claimpo-status_hdr
+                WHERE sap_doc = wa_final1-sap_so_no.
+                IF sy-subrc = 0.
+                  COMMIT WORK AND WAIT.
+                ENDIF.
+                CLEAR: hdr_short.
+              ENDAT.
+
+
+              CLEAR: wa_matdoc,wa_final1,ls_sfgrn,ls_excgrn,ls_claimdlv,ls_claimpo,lv_qty.
+              REFRESH : it_short.
+            ENDLOOP.
+          ENDIF.
+
+        ELSE.
+          LOOP AT it_return INTO DATA(wa) WHERE type = 'E'.
+            wa_final-remarks = wa-message.
+          ENDLOOP.
+          MODIFY it_final FROM wa_final TRANSPORTING remarks WHERE sap_so_no = wa_final-sap_so_no.
+        ENDIF.
+
+        CLEAR: flag,wa_head,head,mat_doc,mat_year,lv_number,lv_itmser.
+        REFRESH : it_item,it_return,it_matdoc,it_ser.
+      ENDIF.
+      CLEAR: wa_final,wa_item.
+    ENDLOOP.
+    IF lv_doctyp = 'RR'.
+      LOOP AT gt_final INTO DATA(gs_final).
+        READ TABLE lt_final INTO DATA(ls_final) WITH KEY sap_so_no = gs_final-sap_so_no so_item = gs_final-so_item.
+        if sy-subrc = 0.
+          DELETE lt_final WHERE sap_so_no = gs_final-sap_so_no AND so_item = gs_final-so_item.
+        endif.
+      ENDLOOP.
+    endif.
+
+    APPEND LINES OF lt_final TO it_final.
+    SORT it_final BY sap_so_no so_item.
+    REFRESH : lt_final.
+
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form moq_validation
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM moq_validation.
+
+  IF lv_doctyp = 'RR'.
+    IF wa_final-moq GT 1.
+      IF wa_final-required_qty LT wa_final-moq.
+        REFRESH : it_moq.
+        CLEAR: lv_moq.
+
+        wa_final-remarks = 'Required Qty is Less Than MOQ'.
+        MODIFY it_final FROM wa_final TRANSPORTING remarks
+            WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+
+        MOVE-CORRESPONDING it_final TO it_moq.
+        DELETE it_moq WHERE sold_party NE wa_final-sold_party.
+        DELETE it_moq WHERE material NE wa_final-material.
+        DELETE it_moq WHERE green = 'X'.
+        IF it_moq IS NOT INITIAL.
+          CLEAR: lv_count.
+          DESCRIBE TABLE it_moq LINES lv_count.
+          IF lv_count > 1.
+            SORT it_moq BY sap_so_no material.
+            LOOP AT it_moq INTO DATA(wa_moq).
+              lv_moq = lv_moq + wa_moq-required_qty.
+              IF lv_moq GE wa_final-moq.
+*                wa_final-remarks = 'Picked Qty is less than MOQ'.
+                CLEAR: r_so_no.
+                r_so_no-sign = 'I'.
+                r_so_no-option = 'BT'.
+                r_so_no-low = wa_final-sap_so_no.
+                r_so_no-high = wa_moq-sap_so_no.
+                APPEND r_so_no.
+                LOOP AT it_final INTO DATA(wa_somoq) WHERE sap_so_no in r_so_no.
+                wa_final-pre_moqflag = 'X'.
+                wa_final-moq_flag = 'X'.
+                MODIFY it_final FROM wa_final TRANSPORTING  moq_flag pre_moqflag
+                    WHERE sap_so_no = wa_somoq-sap_so_no.
+                CLEAR: wa_somoq.
+                ENDLOOP.
+*
+*                MODIFY it_final FROM wa_final TRANSPORTING  moq_flag
+*                    WHERE sap_so_no =  wa_moq-sap_so_no.
+                EXIT.
+              ELSE.
+                wa_final-pre_moqflag = 'X'.
+                MODIFY it_final FROM wa_final TRANSPORTING  pre_moqflag
+                    WHERE sap_so_no = wa_final-sap_so_no.
+                CONTINUE.
+              ENDIF.
+              CLEAR: wa_moq.
+            ENDLOOP.
+            IF wa_final-moq_flag NE 'X'.
+              LOOP AT it_moq INTO wa_moq.
+                wa_final-pre_moqflag = ''.
+                MODIFY it_final FROM wa_final TRANSPORTING  pre_moqflag
+                    WHERE sap_so_no = wa_moq-sap_so_no.
+              ENDLOOP.
+            ELSE.
+              IF wa_final-remarks = 'Required Qty is Less Than MOQ'.
+                wa_final-moq_flag = ''.
+                wa_final-green = 'X'.
+                MODIFY it_final FROM wa_final TRANSPORTING  moq_flag green
+                    WHERE sap_so_no = wa_final-sap_so_no AND so_item  NE wa_final-so_item.
+              ENDIF.
+            ENDIF.
+            LOOP AT it_final INTO DATA(wa_mfinal) WHERE moq_flag = 'X'.
+              MOVE-CORRESPONDING wa_mfinal TO gs_final.
+              APPEND gs_final TO gt_final.
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+
+      ELSE.
+        wa_final-green = 'X'.
+        MODIFY it_final FROM wa_final TRANSPORTING  green
+            WHERE sap_so_no = wa_final-sap_so_no AND so_item = wa_final-so_item.
+
+      ENDIF.
+    ELSE.
+      wa_final-green = 'X'.
+      MODIFY it_final FROM wa_final TRANSPORTING  green
+          WHERE sap_so_no = wa_final-sap_so_no AND so_item  = wa_final-so_item.
+    ENDIF.
+  ENDIF.
+*  IF gt_final IS NOT INITIAL.
+*    PERFORM moq_delivery.
+*  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form moq_delivery
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM moq_delivery.
+
+
+  REFRESH :it_glcc.
+  SELECT * FROM zsfdms_warccgl INTO TABLE it_glcc WHERE plant IN s_plant.
+
+**  IF it_final IS NOT INITIAL.
+**    DATA(lt_final) = it_final.
+**    DELETE it_final WHERE chkbx IS INITIAL.
+**    DELETE it_final WHERE remarks IS NOT INITIAL.
+**    DELETE lt_final WHERE remarks IS INITIAL AND chkbx IS NOT INITIAL.
+
+  SELECT * FROM marc INTO TABLE @DATA(it_marc)
+    FOR ALL ENTRIES IN @gt_final
+    WHERE matnr = @gt_final-material
+    AND werks = @gt_final-plant
+    AND sernp NE ''.
+
+
+    SORT it_final BY ship_party.
+  LOOP AT gt_final INTO gs_final WHERE chkbx = 'X'.
+
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = gs_final-material
+      IMPORTING
+        output = gs_final-material.
+    READ TABLE it_glcc INTO wa_glcc WITH KEY plant = gs_final-plant repair_type = gs_final-repair_typ.
+    IF sy-subrc = 0.
+      wa_item-gl_account = wa_glcc-gl_account.
+      wa_item-costcenter = wa_glcc-cost_center.
+    ENDIF.
+
+    lv_itmser = lv_itmser + 1.
+    wa_item-material   = gs_final-material.
+*    wa_item-ref_doc    = gs_final-po_num.
+    CONCATENATE gs_final-sap_so_no gs_final-so_item INTO wa_item-item_text SEPARATED BY '/'.
+    wa_item-plant      = gs_final-plant.
+    wa_item-stge_loc   = gs_final-sloc.
+    wa_item-move_type  = lv_move.             ""Dynamically 201 0r 202
+    wa_item-entry_qnt  = gs_final-picked_qty.
+    wa_item-entry_uom  = gs_final-uom.
+    APPEND wa_item TO it_item.
+
+
+    AT END OF ship_party.
+      flag = 'X'.
+    ENDAT.
+
+    IF flag = 'X'.
+      wa_head-pstng_date = sy-datum.
+      wa_head-doc_date   = sy-datum.
+*        wa_head-header_txt = wa_final-po_num.
+      wa_code-gm_code    = '03'.
+*        IF button = 'REVERSE'.
+      CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
+        EXPORTING
+          goodsmvt_header       = wa_head
+          goodsmvt_code         = wa_code
+        IMPORTING
+          goodsmvt_headret      = head
+          materialdocument      = mat_doc
+          matdocumentyear       = mat_year
+        TABLES
+          goodsmvt_item         = it_item
+          goodsmvt_serialnumber = it_ser
+          return                = it_return.
+*        ENDIF.
+      IF it_return IS INITIAL.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait = 'X'.
+        CALL FUNCTION 'NUMBER_GET_NEXT'
+          EXPORTING
+            nr_range_nr             = '01'
+            object                  = 'ZSF_DLV'
+            quantity                = '1'
+          IMPORTING
+            number                  = lv_number
+            returncode              = lv_return
+          EXCEPTIONS
+            interval_not_found      = 1
+            number_range_not_intern = 2
+            object_not_found        = 3
+            quantity_is_0           = 4
+            quantity_is_not_1       = 5
+            interval_overflow       = 6
+            buffer_overflow         = 7
+            OTHERS                  = 8.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+        IF lv_number IS NOT INITIAL.
+          CONCATENATE lv_doctyp lv_number INTO lv_number.
+          CONDENSE lv_number.
+          SELECT mblnr, zeile,matnr FROM matdoc INTO TABLE @DATA(it_matdoc)
+            WHERE mblnr = @mat_doc AND mjahr = @mat_year.
+          SORT it_matdoc BY zeile ASCENDING.
+          CLEAR: lv_itm,lv_matitem.
+          LOOP AT gt_final INTO DATA(gs_final1) WHERE ship_party = gs_final-ship_party AND chkbx = 'X'.
+            lv_itm = lv_itm + 10.
+            lv_matitem = lv_matitem + 1.
+            CONDENSE  lv_itm.
+            gs_final1-del_no = lv_number.
+            gs_final1-del_item = lv_itm.
+            gs_final1-mat_doc  = mat_doc.
+            READ TABLE it_matdoc INTO DATA(wa_matdoc) WITH KEY zeile = lv_matitem.
+            gs_final1-mat_item = wa_matdoc-zeile.
+            gs_final1-doc_year = mat_year.
+            gs_final1-doc_type = lv_deltyp.  " dynamically  create(FW) reverse (RE)
+            gs_final1-upd_date = sy-datum.
+            gs_final1-remarks  = 'Created Successfully'.
+            MODIFY gt_final FROM gs_final1 TRANSPORTING del_no
+                                                        del_item
+                                                        mat_doc
+                                                        mat_item
+                                                        doc_year
+                                                        doc_type
+                                                        upd_date
+                                                        remarks
+            WHERE sap_so_no = gs_final1-sap_so_no AND so_item = gs_final1-so_item.
+
+            ls_claimdlv-del_no          = gs_final1-del_no.
+            ls_claimdlv-del_item        = gs_final1-del_item.
+            ls_claimdlv-doc_type        = gs_final1-doc_type.
+            ls_claimdlv-plant           = gs_final1-plant.
+            ls_claimdlv-ship_party      = gs_final1-ship_party.
+            ls_claimdlv-repair          = gs_final1-repair_typ.
+            ls_claimdlv-sap_so_no       = gs_final1-sap_so_no.
+            ls_claimdlv-sap_item        = gs_final1-so_item.
+            ls_claimdlv-mat_doc         = gs_final1-mat_doc.
+            ls_claimdlv-mdoc_item       = gs_final1-mat_item.
+            ls_claimdlv-doc_year        = gs_final1-doc_year.
+            ls_claimdlv-material        = gs_final1-material.
+            ls_claimdlv-qty             = gs_final1-picked_qty.
+            ls_claimdlv-uom             = gs_final1-uom.
+*              ls_claimdlv-cancel          = wa_final1-cancel.
+            ls_claimdlv-upd_date        = sy-datum.
+            ls_claimdlv-creat_tm        = sy-uzeit.
+            ls_claimdlv-creat_by        = sy-uname.
+            ls_claimdlv-sfdms_number    = gs_final1-po_num.
+            ls_claimdlv-sfdms_item    = gs_final1-po_item.
+            ls_claimdlv-source_system   = gs_final1-source_system.
+
+            MODIFY zdms_claimdlv FROM ls_claimdlv.
+            IF sy-subrc = 0.
+              COMMIT WORK AND WAIT.
+            ENDIF.
+*
+*
+              SELECT * FROM zdms_claimdlv INTO TABLE @DATA(it_short) WHERE sfdms_number = @gs_final1-po_num  AND sfdms_item = @gs_final1-po_item.
+              IF it_short IS NOT INITIAL.
+                CLEAR: lv_pick.
+                READ TABLE it_short INTO DATA(wa_short) WITH KEY sfdms_number = gs_final1-po_num  sfdms_item = gs_final1-po_item.
+                IF sy-subrc = 0.
+                  LOOP AT it_short INTO wa_short WHERE sfdms_number = gs_final1-po_num AND sfdms_item = gs_final1-po_item.
+                    lv_pick  = lv_pick + wa_short-qty.
+                    CLEAR: wa_short.
+                  ENDLOOP.
+                  lv_pick = gs_final1-required_qty - lv_pick.
+                  IF lv_pick = 0.  " complete
+                    ls_claimpo-status_item = 'C'.
+                  ELSEIF lv_pick GT 0. " partial
+                    hdr_short = 'X'.
+                    ls_claimpo-status_item = 'P'.
+                  ELSE.
+                    ls_claimpo-status_item = 'C'.
+                  ENDIF.
+                  " Item Level PO table Update
+                  UPDATE  zdms_claimpo  SET  status_item = ls_claimpo-status_item short = ls_claimpo-short
+                  WHERE sap_doc = gs_final1-sap_so_no AND sap_item = gs_final1-so_item.
+                  IF sy-subrc = 0.
+                    COMMIT WORK AND WAIT.
+                  ENDIF.
+
+                ENDIF.
+              ENDIF.
+*
+              AT END OF sap_so_no.
+                IF hdr_short = 'X'.
+                  ls_claimpo-status_hdr = 'P'.
+                ELSE.
+                  ls_claimpo-status_hdr = 'C'.
+                ENDIF.
+                " Header Level PO table Update
+                UPDATE  zdms_claimpo  SET status_hdr = ls_claimpo-status_hdr
+                WHERE sap_doc = gs_final1-sap_so_no.
+                IF sy-subrc = 0.
+                  COMMIT WORK AND WAIT.
+                ENDIF.
+                CLEAR: hdr_short.
+              ENDAT.
+
+
+            CLEAR: wa_matdoc,gs_final1,ls_sfgrn,ls_excgrn,ls_claimdlv,ls_claimpo,lv_qty.
+*              REFRESH : it_short.
+          ENDLOOP.
+        ENDIF.
+
+      ELSE.
+        LOOP AT it_return INTO DATA(wa) WHERE type = 'E'.
+          gs_final-remarks = wa-message.
+        ENDLOOP.
+        MODIFY gt_final FROM gs_final TRANSPORTING remarks WHERE ship_party = gs_final-ship_party.
+      ENDIF.
+
+      CLEAR: flag,wa_head,head,mat_doc,mat_year,lv_number,lv_itmser.
+      REFRESH : it_item,it_return,it_matdoc,it_ser.
+    ENDIF.
+    CLEAR: gs_final,wa_item.
+  ENDLOOP.
+**    APPEND LINES OF lt_final TO it_final.
+**    SORT it_final BY sap_so_no so_item.
+**    REFRESH : lt_final.
+ENDFORM.
