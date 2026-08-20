@@ -1,0 +1,286 @@
+
+
+*Sent Mail with table format in Body
+*All the diclarations to send the email is same for this also
+*except that diclare the doc type specify as HTML
+  DATA:
+*- Structure to hold Output Details in delimited format
+    gf_output_soli TYPE  soli,
+*- Structure to hold Imported Object Components
+    gf_objpack     TYPE sopcklsti1,
+*- Structure to hold data in single line format
+    gf_objhead     TYPE solisti1,
+*- Structure to hold data in single line format
+    gf_objtxt      TYPE solisti1,
+*- Structure to hold data for API Recipient List
+    gf_reclist     TYPE somlreci1,
+*- Structure to hold  email data
+    gf_doc_chng    TYPE sodocchgi1,
+*- Internal Table to hold Output Details in delimited format
+    gt_output_soli TYPE TABLE OF soli,
+*- Internal Table to hold Imported Object Components
+    gt_objpack     TYPE TABLE OF sopcklsti1,
+*- Internal Table to hold data in single line format
+    gt_objhead     TYPE TABLE OF solisti1,
+*- Internal Table to hold data in single line format
+    gt_objtxt      TYPE TABLE OF solisti1,
+*- Internal Table to hold data for API Recipient List
+    gt_reclist     TYPE TABLE OF somlreci1.
+
+  DATA : gv_menge1     TYPE char20.
+  DATA : lv_zminbe     TYPE char20.
+  DATA : lv_menge1     TYPE char20.
+
+
+
+  DATA: g_lines        TYPE sy-tabix,  "To hold number of records
+        g_msg_lines    TYPE sy-tabix,  "To hold number of records
+        g_sent_all     TYPE sonv-flag,
+        sender_address TYPE soextreci1-receiver.
+
+  CONSTANTS : gc_doc_type_htm(3) TYPE c VALUE 'HTM',   "Code for document class
+              gc_rec_type        TYPE c VALUE 'U',         "Recipient type
+              gc_express         TYPE c VALUE 'X'.
+
+*Set the Subject line
+  CONCATENATE sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) INTO DATA(date) SEPARATED BY '.'.
+  CONCATENATE 'Approval for Spare Values Consumption Agaianst Order' p_ord_no INTO gf_doc_chng-obj_descr.
+
+*Set the Body background colour
+  gf_objtxt-line = '<body bgcolor = "#E6E6FA">'.
+*- Append
+  APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+  CLEAR gf_objtxt.
+*Set font color and its type
+  CONCATENATE '<FONT COLOR = "#191970" face="Garamond">' '<b>' INTO gf_objtxt-line.
+*- Append
+  APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+  CLEAR gf_objtxt.
+
+*Prepare mail body
+  CONCATENATE '<p>' 'Dear Manager,' '</p>'
+              INTO gf_objtxt-line.
+*- Append
+  APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+  CLEAR gf_objtxt.
+  gf_objtxt-line = space.
+*- Append
+  APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+  CLEAR gf_objtxt.
+
+  CONCATENATE '<p>'
+              'Please approve consumption of below component in PM order with transaction and need urgent attention.'
+              '</p>'
+                 INTO gf_objtxt-line SEPARATED BY space.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+  gf_objtxt-line = '<left>'.  "'<center>'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+*  Pripare data in table format to dispay in Mail body
+  gf_objtxt-line = '<TABLE  width= "100%" align = "LEFT" border="1">'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+  CONCATENATE '<TR ><td align = "LEFT" BGCOLOR = "#708090">'
+              '<FONT COLOR = "BLACK"><B>Order Number</B> </FONT>'
+                '</td>'  INTO gf_objtxt-line.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+  CONCATENATE '<td align = "LEFT" BGCOLOR = "#708090">'             "+RA23032022
+            '<FONT COLOR = "BLACK"><B>Reservation No.</B> </FONT>'
+              '</td>'  INTO gf_objtxt-line.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+
+  CONCATENATE '<td align = "LEFT" BGCOLOR = "#708090">'
+              '<FONT COLOR = "BLACK"><B>Item No.</B> </FONT>'
+                '</td>'  INTO gf_objtxt-line.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+  CONCATENATE '<td align = "LEFT" BGCOLOR = "#708090">'
+              '<FONT COLOR = "BLACK"><B>Cost</B> </FONT>'
+                '</td>'  INTO gf_objtxt-line.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+  CONCATENATE '<td align = "LEFT" BGCOLOR = "#708090">'
+              '<FONT COLOR = "BLACK"><B>Status</B> </FONT>'
+                '</td>'  INTO gf_objtxt-line.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+  LOOP AT it_final INTO wa_final.
+
+    CLEAR : gv_menge1.
+
+    WRITE wa_final-cost  TO lv_zminbe.
+*    write wa_final-zmenge  to lv_zmenge.
+*    write wa_final-dfc_qty to lv_dfc_qty.
+*    write wa_final-ocdqty_su to lv_ocdqty_su.
+*
+    SPLIT lv_zminbe AT '.'  INTO gv_menge1 lv_menge1.
+*    split lv_zmenge at '.'  into gv_menge2 lv_menge2.
+*    split lv_dfc_qty at '.' into gv_menge3 lv_menge3.
+*    split lv_ocdqty_su at '.' into gv_menge4 lv_menge4.
+*
+*    concatenate wa_final-fkdat+6(2) wa_final-fkdat+4(2) wa_final-fkdat+0(4) into lv_date separated by '.'.
+*    if lv_date = '00.00.0000'.
+*      lv_date = ''.
+*    endif.
+
+    CONCATENATE '<TR><td align = "LEFT">'
+                '<FONT COLOR = "BLACK">'wa_final-order_no'</FONT>'
+                '</td>'  INTO gf_objtxt-line.
+    APPEND gf_objtxt TO gt_objtxt.
+    CLEAR  gf_objtxt.
+
+
+    CONCATENATE '<td align = "LEFT">'
+                '<FONT COLOR = "BLACK">'wa_final-reservation'</FONT>'
+                  '</td>'  INTO gf_objtxt-line.
+    APPEND gf_objtxt TO gt_objtxt.
+    CLEAR  gf_objtxt.
+
+    CONCATENATE '<td align = "LEFT">'
+                '<FONT COLOR = "BLACK">'wa_final-item'</FONT>'
+                  '</td>'  INTO gf_objtxt-line.
+    APPEND gf_objtxt TO gt_objtxt.
+    CLEAR  gf_objtxt.
+
+    CONCATENATE '<td align = "LEFT">'
+                '<FONT COLOR = "BLACK">'gv_menge1'</FONT>'
+                  '</td>'  INTO gf_objtxt-line.
+    APPEND gf_objtxt TO gt_objtxt.
+
+    CONCATENATE '<td align = "LEFT">'
+                '<FONT COLOR = "BLACK">'wa_final-status'</FONT>'
+                  '</td>'  INTO gf_objtxt-line.
+    APPEND gf_objtxt TO gt_objtxt.
+
+    CLEAR  gf_objtxt.
+    CLEAR : wa_final.
+  ENDLOOP.
+
+  gf_objtxt-line = '</TABLE>'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+  gf_objtxt-line = '</left>'.  "'</center>'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+*  CONCATENATE '<p>' ' Please confirm the appropriate actions'
+*                       'have taken place in regards to this change'
+*                 '</p>'
+*                 INTO gf_objtxt-line SEPARATED BY space.
+*  APPEND gf_objtxt TO gt_objtxt.
+*  CLEAR  gf_objtxt.
+*
+*  CONCATENATE '<p>' ' For further questions, please contact system administrator'
+*                 '</p>'
+*                 INTO gf_objtxt-line SEPARATED BY space.
+*  APPEND gf_objtxt TO gt_objtxt.
+*  CLEAR gf_objtxt.
+  gf_objtxt-line = space.  "'<center>'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+
+  gf_objtxt-line = space.  "'<center>'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR  gf_objtxt.
+
+
+  gf_objtxt-line =   'Regards,<br />'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR gf_objtxt.
+  gf_objtxt-line =   'Arjas Steel Pvt Ltd.<br />'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR gf_objtxt.
+  gf_objtxt-line = '<br><br><b><center><i><font color = "RED">*This is an auto generated Email.'.
+  APPEND gf_objtxt TO gt_objtxt.
+  CLEAR gf_objtxt.
+  gf_objtxt-line = '</FONT></body>'.
+*- Append
+  APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+  CLEAR gf_objtxt.
+
+  DESCRIBE TABLE gt_objtxt LINES g_msg_lines.
+  READ TABLE gt_objtxt INTO gf_objtxt INDEX g_msg_lines.
+  gf_doc_chng-doc_size = ( g_msg_lines - 1 ) * 255 + strlen( gf_objtxt ).
+*- Creation of the entry for the compressed document
+  gf_objpack-transf_bin = ' '.
+  gf_objpack-head_start = 1.
+  gf_objpack-head_num   = 0.
+  gf_objpack-body_start = 1.
+  gf_objpack-body_num   = g_msg_lines.
+  gf_objpack-doc_type   = gc_doc_type_htm.
+*- Append
+  APPEND gf_objpack TO gt_objpack.
+*- Clear
+  CLEAR gf_objpack.
+
+*- Creation of the document attachment
+*- Describe
+  DESCRIBE TABLE gt_output_soli LINES g_lines.
+*- Don't create attachment if no data is present
+  IF g_lines <> 0.
+    LOOP AT gt_output_soli INTO gf_output_soli.
+      gf_objtxt = gf_output_soli.
+*- Append
+      APPEND gf_objtxt TO gt_objtxt.
+*- Clear
+      CLEAR gf_objtxt.
+    ENDLOOP.
+  ENDIF.
+
+**- Completing the recipient list
+*  LOOP AT s_mailid.
+  gf_reclist-receiver = 'mudunuri.vamsikrishnaraju@arjas.com'.
+  gf_reclist-rec_type = gc_rec_type.
+  gf_reclist-express  = gc_express.
+**- Append
+  APPEND gf_reclist TO gt_reclist.
+**- Clear
+*    CLEAR gf_reclist.
+*  ENDLOOP.
+
+  sender_address = sy-uname.
+
+  CALL FUNCTION 'SO_DOCUMENT_SEND_API1'
+    EXPORTING
+      document_data              = gf_doc_chng
+      put_in_outbox              = g_sent_all
+      sender_address             = sender_address
+      commit_work                = 'X'
+    IMPORTING
+      sent_to_all                = g_sent_all
+    TABLES
+      packing_list               = gt_objpack
+      object_header              = gt_objhead
+      contents_txt               = gt_objtxt
+      receivers                  = gt_reclist
+    EXCEPTIONS
+      too_many_receivers         = 1
+      document_not_sent          = 2
+      document_type_not_exist    = 3
+      operation_no_authorization = 4
+      parameter_error            = 5
+      x_error                    = 6
+      enqueue_error              = 7
+      OTHERS                     = 8.
+  IF sy-subrc = 0.
+    cl_os_transaction_end_notifier=>raise_commit_requested( ).
+    CALL FUNCTION 'DB_COMMIT'.
+    cl_os_transaction_end_notifier=>raise_commit_finished( ).
+    MESSAGE s022(so).
+  ENDIF.
