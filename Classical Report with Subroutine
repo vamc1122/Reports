@@ -1,0 +1,156 @@
+
+
+INCLUDE ZSDR_6_FAL_EX1_top. " up to declaration part
+INCLUDE ZSDR_6_FAL_EX1_logic. " remaining part
+
+INITIALIZATION.
+PERFORM DEFAULT_VALUES1.
+
+
+
+AT SELECTION-SCREEN ON S_MATNR.
+  PERFORM CHECK_CUSCODE.
+
+START-OF-SELECTION.
+
+PERFORM GET_DATA.
+PERFORM FILL_FINAL.
+PERFORM PROCESS_OUTPUT.
+
+
+
+FORM GET_DATA .
+
+
+REFRESH IT_MARA[].
+ SELECT MATNR
+        MTART
+        MBRSH
+        MATKL
+   FROM MARA INTO TABLE IT_MARA
+    WHERE MATNR IN S_MATNR
+   AND MTART IN S_MTART.
+
+   IF IT_MARA IS NOT INITIAL .
+     SORT IT_MARA BY MATNR.
+
+     REFRESH IT_MARC[].
+     SELECT
+       MATNR
+       WERKS
+       FROM MARC INTO TABLE  IT_MARC FOR ALL ENTRIES IN IT_MARA
+       WHERE MATNR = IT_MARA-MATNR
+       AND WERKS IN S_WERKS .
+
+       IF IT_MARC IS NOT INITIAL .
+         SORT IT_MARC BY MATNR.
+         ENDIF .
+
+
+  REFRESH IT_MAKT[].
+  SELECT MATNR MAKTX FROM MAKT INTO TABLE IT_MAKT FOR ALL ENTRIES IN IT_MARA WHERE MATNR = IT_MARA-MATNR AND SPRAS = 'EN ' .
+  IF IT_MAKT IS NOT INITIAL.
+    SORT IT_MAKT BY MATNR.
+ENDIF.
+  ELSE.
+    MESSAGE 'NO DATA FOUND' TYPE 'E'.
+    ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      FORM  FILL_FINAL
+*&---------------------------------------------------------------------*
+*       TEXT
+*----------------------------------------------------------------------*
+*  -->  P1        TEXT
+*  <--  P2        TEXT
+*----------------------------------------------------------------------*
+FORM FILL_FINAL .
+
+
+  LOOP AT IT_MARC INTO WA_MARC.
+    WA_FINAL-MATNR = WA_MARC-MATNR.
+    WA_FINAL-WERKS = WA_MARC-WERKS.
+    CLEAR WA_MARA.
+  READ TABLE IT_MARA INTO WA_MARA WITH KEY MATNR = WA_MARC-MATNR BINARY SEARCH.
+  IF SY-SUBRC = 0.
+    WA_FINAL-MTART = WA_MARA-MTART.
+    WA_FINAL-MBRSH = WA_MARA-MBRSH.
+    WA_FINAL-MATKL = WA_MARA-MATKL.
+ ENDIF.
+ CLEAR WA_MAKT.
+ READ TABLE IT_MAKT INTO WA_MAKT WITH KEY MATNR = WA_MARC-MATNR BINARY SEARCH.
+ IF SY-SUBRC = 0.
+   WA_FINAL-MAKTX = WA_MAKT-MAKTX.
+ ENDIF.
+ APPEND WA_FINAL TO IT_FINAL.
+ CLEAR WA_FINAL .
+ ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      FORM  PROCESS_OUTPUT
+*&---------------------------------------------------------------------*
+*       TEXT
+*----------------------------------------------------------------------*
+*  -->  P1        TEXT
+*  <--  P2        TEXT
+*----------------------------------------------------------------------*
+FORM PROCESS_OUTPUT .
+
+
+ IF IT_FINAL IS NOT INITIAL .
+     LOOP AT IT_FINAL INTO WA_FINAL .
+     WRITE :/ WA_FINAL-MATNR,
+              WA_FINAL-MTART,
+              WA_FINAL-MBRSH,
+              WA_FINAL-MATKL,
+              WA_FINAL-WERKS,
+              WA_FINAL-MAKTX.
+        ENDLOOP.
+  ELSE.
+
+     MESSAGE 'INVALID DATA' TYPE 'E'.
+
+ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      FORM  DEFAULT_VALUES1
+*&---------------------------------------------------------------------*
+*       TEXT
+*----------------------------------------------------------------------*
+*  -->  P1        TEXT
+*  <--  P2        TEXT
+*----------------------------------------------------------------------*
+*FORM DEFAULT_VALUES1 .
+*
+*  S_MATNR-SIGN = 'I' .
+*  S_MATNR-OPTION = 'EQ'.
+*  S_MATNR-LOW = '4969' .
+*  S_MATNR-HIGH = '4973' .
+*  APPEND S_MATNR.
+*  CLEAR S_MATNR.
+*
+*
+*ENDFORM.
+*&---------------------------------------------------------------------*
+*&      FORM  DEFAULT_VALUES1
+*&---------------------------------------------------------------------*
+*       TEXT
+*----------------------------------------------------------------------*
+*  -->  P1        TEXT
+*  <--  P2        TEXT
+*----------------------------------------------------------------------*
+FORM DEFAULT_VALUES1 .
+
+
+  S_MATNR-SIGN = 'I'.
+  S_MATNR-OPTION = 'EQ'.
+  S_MATNR-LOW = '0000000023'.
+  S_MATNR-HIGH = '0000000035'.
+
+  APPEND S_MATNR.
+  CLEAR S_MATNR.
+
+ENDFORM.
