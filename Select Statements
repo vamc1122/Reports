@@ -1,0 +1,169 @@
+
+1
+SELECT * FROM VBAK INTO @DATA(WA).
+ENDSELECT.
+
+2
+TABLES: VBAK.
+PARAMETERS: P_VBELN TYPE VBAK-VBELN.
+SELECT SINGLE * FROM VBAK INTO @DATA(WA) WHERE VBELN = @P_VBELN. "it will give the exact record
+
+3
+SELECT SINGLE * FROM VBAK INTO @DATA(WA)." it will give any random one record from data base table
+
+4
+SELECT * FROM vbak INTO @DATA(wa) ORDER BY  vbeln DESCENDING. " descending 1st and asscending last record
+ENDSELECT.
+
+5
+SELECT VBELN, AVG( NETWR ) as avg_value FROM VBAK INTO @DATA(WA) GROUP BY vbeln. " alias is madatory for aggregation
+ENDSELECT.
+
+6
+SELECT a~vbeln, b~matnr FROM vbak AS a INNER JOIN vbap AS b ON a~vbeln = b~vbeln INTO @DATA(wa) ORDER BY matnr . "  does give proper record
+NDSELECT.
+
+7
+SELECT * FROM vbak  INTO TABLE @DATA(it_table) UP TO 100 ROWS.
+
+8
+SELECT * FROM vbap INTO @data(wa) FOR ALL ENTRIES IN @it_table WHERE  vbeln = @it_table-vbeln .
+ENDSELECT.
+
+9
+DATA WA TYPE VBAK.
+SELECT * FROM VBAK INTO CORRESPONDING FIELDS OF @DATA(WA). "INLINE DECLARATION CORRESPONDING KEYWORD WILL NOT WORK
+ENDSELECT.
+
+10
+SELECT VBELN,AUDAT, COUNT( * ) AS COUNT1 FROM VBAK INTO @DATA(WA)  GROUP BY VBELN, AUDAT ORDER BY VBELN DESCENDING, AUDAT ASCENDING.
+ENDSELECT. " 1ST GROUP KEYWORD THEN ORDER KEYWORD
+
+11
+  SELECT DISTINCT  VBELN ,MATNR FROM VBAP INTO TABLE @DATA(IT_TABLE) WHERE VBELN IN ( SELECT  VBELN  FROM VBAK ) GROUP BY VBELN ,MATNR ."ORDER BY
+  MATNR ASCENDING.
+
+12
+DATA: o TYPE int8,
+      n TYPE int8.
+
+  SELECT FROM demo_expressions
+           FIELDS id, num1 AS number, numlong1 AS result
+           ORDER BY id, num1
+           INTO TABLE @DATA(itab)
+           OFFSET @o
+           UP TO @n ROWS.
+13
+  SELECT char1 && '_' && char2 AS group,
+           MAX( num1 + num2 ) AS max,
+           MIN( num1 + num2 ) AS min,
+           MIN( num1 * num2 ) AS min_product
+           FROM demo_expressions
+           GROUP BY char1, char2
+           ORDER BY group
+           INTO TABLE @DATA(grouped).
+
+
+    SELECT char1 && '_' && char2 AS group,
+           MAX( num1 + num2 ) AS max,
+           MIN( num1 + num2 ) AS min
+           FROM demo_expressions
+           GROUP BY char1, char2
+           HAVING MIN( num1 * num2 ) > 25
+           ORDER BY group
+           INTO TABLE @DATA(grouped_having).
+14
+
+TYPES : VBAK.
+
+TYPES :BEGIN OF result,
+       vbeln TYPE VBELN_VA,
+       vkorg TYPE vkorg,
+  END OF result.
+  SELECTION-SCREEN BEGIN OF BLOCK A1 WITH FRAME TITLE TEXT-001.3
+
+ PARAMETERS : S_VBELN TYPE VBAK-VBELN.
+
+SELECT-OPTIONS : S_VBELN FOR VBAK-VBELN.
+
+  SELECTION-SCREEN END OF BLOCK A1.
+
+  DATA it_table TYPE TABLE OF result.
+START-OF-SELECTION.
+SELECT vbeln,
+       vkorg FROM VBAK
+          WHERE vbeln  IN @s_vbeln INTO TABLE @DATA(it_table).
+          APPENDING TABLE @it_table.
+
+15.
+
+    SELECT
+            bukrs
+            kunnr
+            umskz
+            zuonr
+            belnr
+            budat
+            bldat
+            waers
+            xblnr
+            blart
+            monat
+            shkzg
+            dmbtr
+            wrbtr
+            sgtxt
+            zfbdt
+            zbd1t
+            zbd2t
+            zbd3t
+            dmbe2
+            dmbe3 FROM bsid INTO TABLE git_bsid1
+       FOR ALL ENTRIES IN git_kna1
+       WHERE kunnr = git_kna1-kunnr
+       AND budat IN r_budat
+       AND  blart NE  c_cl ."'CL'.
+       
+       
+    SELECT
+       bukrs
+            kunnr
+            umskz
+            zuonr
+            belnr
+            budat
+            bldat
+            waers
+            xblnr
+            blart
+            monat
+            shkzg
+            dmbtr
+            wrbtr
+            sgtxt
+            zfbdt
+            zbd1t
+            zbd2t
+            zbd3t
+            dmbe2
+            dmbe3 FROM bsad  APPENDING TABLE git_bsid1
+       FOR ALL ENTRIES IN git_kna1
+       WHERE kunnr = git_kna1-kunnr
+       AND budat IN r_budat
+      AND  blart NE  c_cl ."'CL'. ADD another table records to existing internal table records
+
+BREAK-POINT.
+
+
+
+FROM:        Specifies the database table or view from which data should be selected.
+WHERE:       Defines the selection criteria to filter the data.
+GROUP BY:    Groups the result set based on specified fields.
+ORDER BY:    Sorts the result set based on specified fields and sorting order (ASCENDING or DESCENDING).
+HAVING:      Applies additional conditions to the grouped data after the GROUP BY operation.
+AS:          Renames a field or provides an alias for a selected column.
+JOIN:        Combines records from two or more tables based on a related column between them.
+INNER/LEFT/RIGHT/FULL JOIN: Specifies the type of join to be performed.
+ON:          Specifies the join condition for tables.
+DISTINCT:    Removes duplicate rows from the result set.
+AGGREGATIONS (SUM, AVG, MAX, MIN, COUNT): Performs calculations on selected fields.
