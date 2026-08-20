@@ -1,0 +1,990 @@
+*&---------------------------------------------------------------------*
+*& Report YR_AE_MM_UPDATE_URL
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT yr_ae_mm_update_url.
+
+
+TYPE-POOLS : slis,icon.
+TABLES : matdoc.
+
+TYPES : BEGIN OF ty_matdoc,
+          werks TYPE matdoc-werks,
+          lifnr TYPE matdoc-lifnr,
+          budat TYPE matdoc-budat,
+          xblnr TYPE matdoc-xblnr,
+          mblnr TYPE matdoc-mblnr,
+          mjahr TYPE matdoc-mjahr,
+          ebeln TYPE matdoc-ebeln,
+          matnr TYPE matdoc-matnr,
+          bwart TYPE matdoc-bwart,
+          cpudt TYPE matdoc-cpudt,
+        END OF ty_matdoc.
+
+
+TYPES : BEGIN OF ty_final,
+          checkbox     TYPE c,
+          werks        TYPE matdoc-werks,
+          lifnr        TYPE matdoc-lifnr,
+          budat        TYPE matdoc-budat,
+          xblnr        TYPE matdoc-xblnr,
+          mblnr        TYPE matdoc-mblnr,
+          Grn_date     TYPE char10,
+          Grn_time     TYPE mkpf-cputm,
+          mjahr        TYPE matdoc-mjahr,
+          ebeln        TYPE matdoc-ebeln,
+          matnr        TYPE matdoc-matnr,
+          bwart        TYPE matdoc-bwart,
+*          cpudt      TYPE matdoc-cpudt,
+          adrnr        TYPE lfa1-adrnr,
+          addrnumber   TYPE adrc-addrnumber,
+          name1        TYPE adrc-name1,
+          name2        TYPE adrc-name2,
+          gst_num      TYPE ekbe-xblnr,
+          url          TYPE string,
+          lv_icon      TYPE char30,
+          view_url     TYPE char30,
+          url_prevw    TYPE string,
+          url_status   TYPE Char30,
+          url_date     TYPE char10,
+          url_time     TYPE sy-uzeit,
+          Alloc_user   TYPE char10,
+          Alloc_date   TYPE char10,
+          alloc_time   TYPE sy-uzeit,
+          park_num     TYPE bkpf-belnr,
+          park_status  TYPE char20,
+          park_date    TYPE char10,
+          park_time    TYPE bkpf-pptme,
+          post_doc_num TYPE bkpf-belnr,
+          post_status  TYPE char20,
+          post_acc     TYPE bkpf-belnr,
+          post_date    TYPE char10,
+          post_time    TYPE bkpf-cputm,
+          bank_acc     TYPE char12,
+          payment_date TYPE bkpf-budat,
+          utr_num      TYPE xblnr,
+        END OF ty_final.
+
+DATA : wa_matdoc TYPE ty_matdoc,
+       it_matdoc TYPE TABLE OF ty_matdoc.
+
+DATA : it_final TYPE TABLE OF ty_final,
+       wa_final TYPE ty_final.
+
+DATA : it_final1 TYPE TABLE OF ty_final,
+       wa_final1 TYPE ty_final.
+
+DATA : it_invoice TYPE TABLE OF zmm_vend_invoice          ##NEEDED,
+       wa_invoice TYPE zmm_vend_invoice.
+
+DATA : it_invoice1 TYPE TABLE OF zmm_vend_invoice,
+       wa_invoice1 TYPE zmm_vend_invoice.
+
+DATA : it_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_fieldcat TYPE slis_fieldcat_alv.
+
+DATA : wa_layout  TYPE slis_layout_alv.
+DATA : lv_string  TYPE string.
+
+DATA : lv_icon TYPE char4                 ##NEEDED.
+DATA : lv_url TYPE string.
+DATA : it_url TYPE TABLE OF zmm_vend_invoice.
+DATA : wa_url TYPE zmm_vend_invoice.
+DATA: lv_grn TYPE matdoc-mblnr.
+
+CONSTANTS : c_url TYPE icon-id  VALUE  '@8S@'.
+CONSTANTS : c_upl TYPE icon-id  VALUE  '@Y5@'.
+CONSTANTS : c_vurl TYPE icon-id VALUE  '@SX@'.
+
+""SELECTION SCREEN.
+
+SELECTION-SCREEN BEGIN OF BLOCK a WITH FRAME TITLE TEXT-001.
+  PARAMETERS : p_werks TYPE matdoc-werks OBLIGATORY.
+  SELECT-OPTIONS : s_lifnr FOR matdoc-lifnr,
+                   s_budat FOR matdoc-budat,
+                   s_xblnr FOR matdoc-xblnr,
+                   s_mblnr FOR matdoc-mblnr,
+                   s_ebeln FOR matdoc-ebeln,
+                   s_matnr FOR matdoc-matnr,
+                   s_bwart FOR matdoc-bwart NO INTERVALS.
+
+SELECTION-SCREEN END OF BLOCK a.
+
+SELECTION-SCREEN:BEGIN OF BLOCK b WITH FRAME.
+  PARAMETERS: p_xblnr AS CHECKBOX            ##NEEDED.
+SELECTION-SCREEN:END OF BLOCK b.
+
+INITIALIZATION.
+* Include following movement types
+
+  REFRESH : s_bwart.
+  s_bwart-sign = 'I'.
+  s_bwart-option = 'EQ'.
+  s_bwart-low = '101'.
+  APPEND s_bwart.
+
+  s_bwart-sign = 'I'.
+  s_bwart-option = 'EQ'.
+  s_bwart-low = '102'.
+  APPEND s_bwart.
+
+START-OF-SELECTION.
+
+  PERFORM get_data.
+  IF NOT it_final IS INITIAL.
+    PERFORM fieldcatalog.
+    PERFORM display.
+  ELSE.
+    MESSAGE 'No Data Found' TYPE 'S' DISPLAY LIKE 'E'     ##NO_TEXT.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*& Form get_data
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_data.
+
+  SELECT werks,
+         lifnr,
+         budat,
+         xblnr,
+         mblnr,
+         mjahr,
+         ebeln,
+         matnr,
+         bwart
+*         cpudt
+  FROM matdoc INTO TABLE @it_matdoc
+  WHERE werks EQ @p_werks
+  AND   lifnr IN @s_lifnr
+  AND   budat IN @s_budat
+  AND   xblnr IN @s_xblnr
+  AND   mblnr IN @s_mblnr
+  AND   ebeln IN @s_ebeln
+  AND   matnr IN @s_matnr
+  AND   bwart IN @s_bwart
+  AND   ebeln NE ''
+  AND   lifnr NE ''.
+
+  IF it_matdoc IS NOT INITIAL.
+    SELECT lifnr,
+           stcd3,                                  "#EC CI_NO_TRANSFORM
+           adrnr
+    FROM lfa1 INTO TABLE @DATA(it_lfa1)
+    FOR ALL ENTRIES IN @it_matdoc
+    WHERE lifnr = @it_matdoc-lifnr.
+
+    SELECT * FROM mkpf INTO TABLE @DATA(it_mkpf)
+    FOR ALL ENTRIES IN @it_matdoc
+    WHERE mblnr = @it_matdoc-mblnr.
+
+
+    SELECT * FROM zmm_vend_invoice    ##SELECT_FAE_WITH_LOB[ZURL]
+    FOR ALL ENTRIES IN @it_matdoc
+    WHERE zmblnr = @it_matdoc-mblnr
+    INTO TABLE @DATA(it_url).                      "#EC CI_NO_TRANSFORM
+
+    SELECT * FROM zmm_alc INTO TABLE @DATA(it_alco)
+    FOR ALL ENTRIES IN @it_matdoc
+    WHERE grn = @it_matdoc-mblnr.
+
+    SELECT * FROM mseg INTO TABLE @DATA(lt_mseg)
+      FOR ALL ENTRIES IN @it_matdoc
+      WHERE lfbnr = @it_matdoc-mblnr
+        AND lfbja = @it_matdoc-mjahr.
+
+    SELECT * FROM rseg INTO TABLE @DATA(lt_rseh)
+      FOR ALL ENTRIES IN @lt_mseg
+      WHERE lfbnr = @lt_mseg-lfbnr
+      AND  lfgja = @lt_mseg-lfbja.
+
+  ENDIF.
+
+  IF it_lfa1 IS NOT INITIAL.
+    SELECT addrnumber,                             "#EC CI_NO_TRANSFORM
+           name1,
+           name2
+    FROM adrc INTO TABLE @DATA(it_adrc)
+    FOR ALL ENTRIES IN @it_lfa1
+    WHERE addrnumber = @it_lfa1-adrnr.
+  ENDIF.
+
+  SORT it_matdoc BY mblnr.
+  DELETE ADJACENT DUPLICATES FROM it_matdoc COMPARING mblnr.
+
+  DATA: lv_awkey TYPE char30.
+
+  LOOP AT it_matdoc INTO DATA(wa_matdoc).
+    wa_final-werks = wa_matdoc-werks.
+    wa_final-lifnr = wa_matdoc-lifnr.
+    wa_final-budat = wa_matdoc-budat.
+    wa_final-xblnr = wa_matdoc-xblnr.
+    wa_final-mjahr = wa_matdoc-mjahr.
+    wa_final-mblnr = wa_matdoc-mblnr.
+    wa_final-ebeln = wa_matdoc-ebeln.
+    wa_final-matnr = wa_matdoc-matnr.
+    wa_final-bwart = wa_matdoc-bwart.
+*    wa_final-cpudt = wa_matdoc-cpudt.
+
+    READ TABLE it_url INTO DATA(wa_url) WITH KEY zmblnr = wa_matdoc-mblnr.
+
+    IF sy-subrc = 0.
+      wa_final-url = wa_url-zurl.
+      IF wa_final-url IS NOT INITIAL.
+        CONCATENATE wa_url-zchanged_on+6(2) wa_url-zchanged_on+4(2)
+                    wa_url-zchanged_on+0(4) INTO  wa_final-url_date SEPARATED BY '.'.
+        wa_final-url_time = wa_url-zchanged_time.
+        wa_final-url_status = 'URL Updated'.
+        CONCATENATE c_url 'OPEN URL' INTO wa_final-lv_icon SEPARATED BY space.
+        CONCATENATE c_vurl 'VIEW URL' INTO wa_final-view_url SEPARATED BY space.
+      ELSE.
+        wa_final-url_status = 'URL Yet To Update'.
+        CONCATENATE c_upl 'UPLOAD LINK' INTO wa_final-url SEPARATED BY space.
+      ENDIF.
+    ELSE.
+      wa_final-url_status = 'URL Yet To Update'.
+      CONCATENATE c_upl 'UPLOAD LINK' INTO wa_final-url SEPARATED BY space.
+    ENDIF.
+
+    READ TABLE it_lfa1 INTO DATA(wa_lfa1) WITH KEY lifnr = wa_matdoc-lifnr.
+    IF sy-subrc = 0.
+      wa_final-gst_num = wa_lfa1-stcd3.
+      wa_final-adrnr = wa_lfa1-adrnr.
+    ENDIF.
+
+    READ TABLE it_adrc INTO DATA(wa_adrc) WITH KEY addrnumber = wa_lfa1-adrnr.
+    IF sy-subrc = 0.
+      wa_final-name1 = wa_adrc-name1.
+      wa_final-name2 = wa_adrc-name2.
+    ENDIF.
+    READ TABLE lt_mseg INTO DATA(ls_mseg) WITH KEY   lfbnr = wa_matdoc-mblnr
+                                                      lfbja = wa_matdoc-mjahr.
+    IF sy-subrc = 0.
+      READ TABLE lt_rseh INTO DATA(ls_rseh) WITH KEY   lfbnr = ls_MSEG-lfbnr
+                                                       lfgja = ls_MSEG-lfbja.
+      IF sy-subrc = 0.
+        wa_final-park_num = ls_rseh-belnr.
+        IF wa_final-park_num IS NOT INITIAL.
+*          wa_final-park_status = 'Parked'.
+        ENDIF.
+        CONCATENATE ls_RSEH-belnr ls_RSEH-gjahr INTO lv_awkey.
+        SELECT SINGLE * FROM bkpf INTO @DATA(ls_mkpf) WHERE awkey  = @lv_awkey.
+*        wa_final-post_acc = ls_mkpf-belnr.
+        IF wa_final-post_acc IS NOT INITIAL.
+*          wa_final-post_status = 'Posted'.
+        ENDIF.
+        IF ls_mkpf-bstat NE 'V'.
+          wa_final-post_status = 'Posted'.
+        wa_final-post_acc = ls_mkpf-belnr.
+
+          CONCATENATE ls_mkpf-ppdat+6(2) ls_mkpf-ppdat+4(2) ls_mkpf-ppdat+0(4)
+                      INTO wa_final-park_date SEPARATED BY '.'.
+          CONCATENATE ls_mkpf-cpudt+6(2) ls_mkpf-cpudt+4(2) ls_mkpf-cpudt+0(4)
+                      INTO wa_final-post_date SEPARATED BY '.'.
+
+          wa_final-park_time = ls_mkpf-pptme.
+          wa_final-post_time = ls_mkpf-cputm.
+          wa_final-post_doc_num = ls_rseh-belnr.
+        ELSE.
+          wa_final-park_status = 'Parked'.
+          CONCATENATE ls_mkpf-cpudt+6(2) ls_mkpf-cpudt+4(2) ls_mkpf-cpudt+0(4) INTO wa_final-park_date SEPARATED BY '.'.
+          wa_final-park_time = ls_mkpf-cpuTM.
+        ENDIF.
+
+        SELECT SINGLE * FROM bsak INTO @DATA(wa_bsak) WHERE belnr = @ls_mkpf-belnr AND gjahr = @ls_mkpf-gjahr.
+        IF wa_bsak IS NOT INITIAL.
+          SELECT SINGLE BANKN FROM LFBK INTO @DATA(lv_bank) WHERE lifnr = @wa_bsak-lifnr.
+
+           wa_final-bank_acc = lv_bank.
+          SELECT SINGLE * FROM bsas INTO @DATA(w_bsas) WHERE belnr = @wa_bsak-augbl AND budat = @wa_bsak-augdt AND ( bschl = '40' OR bschl = '50' ).
+          IF w_bsas IS NOT INITIAL.
+            wa_final-utr_num = w_bsas-xblnr.
+          ENDIF.
+          wa_final-payment_date = wa_bsak-augdt.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE it_alco INTO DATA(wa_alco) WITH KEY grn = wa_matdoc-mblnr.
+    IF sy-subrc = 0.
+      wa_final-alloc_user = wa_alco-user_id.
+      CONCATENATE wa_alco-created_on+6(2) wa_alco-created_on+4(2) wa_alco-created_on+0(4)
+       INTO wa_final-alloc_date SEPARATED BY '.'.
+      wa_final-alloc_time = wa_alco-created_time.
+    ENDIF.
+
+    READ TABLE it_mkpf INTO DATA(wa_mkpf) WITH KEY mblnr = wa_matdoc-mblnr.
+    IF sy-subrc = 0.
+      CONCATENATE wa_mkpf-cpudt+6(2) wa_mkpf-cpudt+4(2) wa_mkpf-cpudt+0(4) INTO wa_final-grn_date SEPARATED BY '.'.
+      wa_final-grn_time = wa_mkpf-cputm.
+    ENDIF.
+
+    APPEND wa_final TO it_final.
+    CLEAR : wa_final, wa_matdoc,wa_mkpf,wa_alco,w_bsas,lv_bank,
+            wa_bsak,ls_mkpf,ls_rseh,wa_adrc,wa_lfa1.
+  ENDLOOP.
+
+  IF p_xblnr IS NOT INITIAL.
+    it_final1 = it_final.
+    LOOP AT it_final1 INTO wa_final1.
+      SELECT  * FROM zmm_vend_invoice INTO TABLE it_invoice1 WHERE zmblnr = wa_final1-mblnr.
+      IF it_invoice1 IS NOT INITIAL.
+        READ TABLE it_invoice1 INTO wa_invoice1 WITH KEY zmblnr = wa_final1-mblnr.
+        IF wa_invoice1-zurl IS NOT INITIAL.
+          DELETE it_final WHERE mblnr = wa_final1-mblnr.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form fieldcatalog
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM fieldcatalog .
+  DATA: counter TYPE i.
+
+  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter .
+  wa_fieldcat-fieldname  = 'CHECKBOX' .
+  wa_fieldcat-checkbox = 'X'.
+  wa_fieldcat-seltext_m  = 'Select'        ##NO_TEXT.
+  wa_fieldcat-edit = 'X'.
+*  WA_fieldcat-outputlen = '3'.
+  wa_fieldcat-fix_column = 'X'.
+  wa_fieldcat-input = 'X'.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'MBLNR' .
+  wa_fieldcat-seltext_m  = 'GRN Number'    ##NO_TEXT.
+*  wa_fieldcat-hotspot  = 'X'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'MJAHR' .
+  wa_fieldcat-seltext_m  = 'Mat Doc Year'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'GRN_DATE' .
+  wa_fieldcat-seltext_m  = 'GRN Date'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'GRN_TIME'.
+  wa_fieldcat-seltext_m  = 'GRN Time'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'BUDAT' .
+  wa_fieldcat-seltext_m  = 'Posting Date'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'WERKS' .
+  wa_fieldcat-seltext_m  = 'Plant'        ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'EBELN' .
+  wa_fieldcat-seltext_m  = 'SA/PO Number'   ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'LIFNR' .
+  wa_fieldcat-seltext_m  = 'Vendor Code'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'NAME1' .
+  wa_fieldcat-seltext_m  = 'Name'          ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'NAME2'.
+  wa_fieldcat-seltext_m  = 'Name2'       ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'GST_NUM'.
+  wa_fieldcat-seltext_m  = 'GST Number'       ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat.
+  CLEAR wa_fieldcat.
+
+*  counter = counter + 1.
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'XBLNR' .
+  wa_fieldcat-seltext_m  = 'ASN/Invoice Number'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'LV_ICON' .
+  wa_fieldcat-seltext_m  = 'Open URL in WEB'       ##NO_TEXT.
+*  wa_fieldcat-just = 'C'.
+  wa_fieldcat-hotspot = 'X'.
+*  wa_fieldcat-outputlen  = lv_string.
+  wa_fieldcat-outputlen  = '20'.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'VIEW_URL' .
+  wa_fieldcat-seltext_m  = 'View URL'           ##NO_TEXT.
+  wa_fieldcat-hotspot = 'X'.
+  wa_fieldcat-outputlen  = lv_string.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'URL' .
+  wa_fieldcat-seltext_m  = 'Upload URL'         ##NO_TEXT.
+*  wa_fieldcat-edit = 'X'.
+  wa_fieldcat-hotspot = 'X'.
+  wa_fieldcat-outputlen  = lv_string.
+*  wa_fieldcat-outputlen  = '10'.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'URL_STATUS' .
+  wa_fieldcat-seltext_m  = 'URL Status'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat .
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'URL_DATE' .
+  wa_fieldcat-seltext_m  = 'URL Posting Date'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'URL_TIME' .
+  wa_fieldcat-seltext_m  = 'URL Posting Time'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'ALLOC_USER' .
+  wa_fieldcat-seltext_m  = 'Allocation User ID'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'ALLOC_DATE' .
+  wa_fieldcat-seltext_m  = 'Allocation Date'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'ALLOC_TIME' .
+  wa_fieldcat-seltext_m  = 'Allocation Time'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'PARK_NUM' .
+  wa_fieldcat-seltext_m  = 'Parking Document Number'         ##NO_TEXT.
+*  wa_fieldcat-hotspot  = 'X'    ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'PARK_STATUS' .
+  wa_fieldcat-seltext_m  = 'Parking Status'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'PARK_DATE' .
+  wa_fieldcat-seltext_m  = 'Parking Date'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'PARK_TIME' .
+  wa_fieldcat-seltext_m  = 'Parking Time'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'POST_DOC_NUM' .
+  wa_fieldcat-seltext_m  = 'Posting Document Number'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'POST_STATUS' .
+  wa_fieldcat-seltext_m  = 'Posting Status'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'POST_ACC' .
+  wa_fieldcat-seltext_m  = 'Accounting Doc Number'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'POST_DATE' .
+  wa_fieldcat-seltext_m  = 'Posting Date'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'POST_TIME' .
+  wa_fieldcat-seltext_m  = 'Posting Time'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'BANK_ACC' .
+  wa_fieldcat-seltext_m  = 'Bank Account'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'PAYMENT_DATE' .
+  wa_fieldcat-seltext_m  = 'Payment Date'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-col_pos    = counter.
+  wa_fieldcat-fieldname  = 'UTR_NUM' .
+  wa_fieldcat-seltext_m  = 'UTR_Number'         ##NO_TEXT.
+  APPEND wa_fieldcat TO it_fieldcat .
+  CLEAR wa_fieldcat.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form Display
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM Display.
+
+  wa_layout-colwidth_optimize = 'X'.
+  wa_layout-zebra             = 'X'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-cprog
+      i_callback_pf_status_set = 'PF_STATUS'
+      i_callback_user_command  = 'USR_COMMAND'
+*     I_GRID_SETTINGS          =
+      is_layout                = wa_layout
+      it_fieldcat              = it_fieldcat
+      i_save                   = 'A'
+    TABLES
+      t_outtab                 = it_final
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.
+*CALL SCREEN '0100'.
+FORM pf_status USING rt_extab TYPE slis_t_extab                     ##CALLED.
+  SET PF-STATUS 'URL'.
+ENDFORM.
+
+FORM usr_command  USING r_ucomm LIKE sy-ucomm
+                                  rs_selfield TYPE slis_selfield       ##CALLED.
+
+  DATA : tlines   TYPE TABLE OF tline,
+         ls_tline TYPE tline.
+  DATA : it_text TYPE TABLE OF tline,
+         wa_text TYPE tline.
+  DATA : lv_mblnr TYPE thead-tdname.
+  DATA: ref_grid  TYPE REF TO cl_gui_alv_grid                            ##NEEDED.
+
+  DATA ls_ref1 TYPE REF TO cl_gui_alv_grid .
+  DATA e_grid TYPE REF TO cl_gui_alv_grid                               ##NEEDED.
+  DATA : lv_finalurl TYPE string.
+  DATA : textnote TYPE TABLE OF txw_note.
+  DATA : w_textnote TYPE txw_note.
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = ls_ref1.
+
+  CALL METHOD ls_ref1->check_changed_data.
+
+  SELECT * FROM zmm_vend_invoice  ##SELECT_FAE_WITH_LOB[ZURL]
+    INTO TABLE it_url
+   FOR ALL ENTRIES IN it_final
+   WHERE zmblnr = it_final-mblnr.
+
+  CASE r_ucomm.
+
+    WHEN '&IC1'.
+      PERFORM handle_double_click USING rs_selfield.
+
+
+      CLEAR : wa_final,lv_mblnr,tlines,it_text,wa_text,textnote,lv_finalurl,lv_url.
+      IF rs_selfield-fieldname = 'URL'.
+        READ TABLE it_final INTO wa_final INDEX rs_selfield-tabindex.
+
+        IF wa_final-lv_icon IS INITIAL.
+          CALL FUNCTION 'TXW_TEXTNOTE_EDIT'
+            EXPORTING
+              edit_mode = 'X'
+            TABLES
+              t_txwnote = textnote.
+
+          DELETE textnote WHERE line IS INITIAL.
+
+          IF textnote IS NOT INITIAL.
+
+            LOOP AT textnote INTO DATA(ls_textnote).
+              MOVE ls_textnote-line TO ls_tline-tdline.
+              APPEND ls_tline TO tlines.
+            ENDLOOP.
+
+            lv_mblnr = wa_final-mblnr.
+            CALL FUNCTION 'CREATE_TEXT'
+              EXPORTING
+                fid         = 'ZURL'
+                flanguage   = 'E'
+                fname       = lv_mblnr
+                fobject     = 'ZMBLNR'
+                save_direct = 'X'
+*               FFORMAT     = '*'
+              TABLES
+                flines      = tlines
+              EXCEPTIONS
+                no_init     = 1
+                no_save     = 2
+                OTHERS      = 3.
+            IF sy-subrc <> 0.
+* Implement suitable error handling here
+
+            ELSE.
+
+              CALL FUNCTION 'READ_TEXT'
+                EXPORTING
+                  client                  = sy-mandt
+                  id                      = 'ZURL'
+                  language                = 'E'
+                  name                    = lv_mblnr
+                  object                  = 'ZMBLNR'
+                TABLES
+                  lines                   = it_text
+                EXCEPTIONS
+                  id                      = 1
+                  language                = 2
+                  name                    = 3
+                  not_found               = 4
+                  object                  = 5
+                  reference_check         = 6
+                  wrong_access_to_archive = 7
+                  OTHERS                  = 8.
+              IF sy-subrc <> 0.
+* Implement suitable error handling here
+                MESSAGE 'URL NOT UPDATED' TYPE 'I' DISPLAY LIKE 'E'.
+                LEAVE TO LIST-PROCESSING.
+              ELSE.
+
+*
+                LOOP AT it_text INTO wa_text.
+                  CONCATENATE lv_url wa_text-tdline INTO lv_url.
+                  AT LAST.
+*                    REPLACE ALL OCCURRENCES OF 'UPLOAD LINK' in wa_final-url WITH ''.
+*                    CONDENSE wa_final-url.
+                    wa_final-url = lv_url.
+                    CONCATENATE c_url 'OPEN URL' INTO wa_final-lv_icon SEPARATED BY space.
+                    CONCATENATE c_vurl 'VIEW_URL' INTO wa_final-view_url SEPARATED BY space.
+                    MODIFY it_final FROM wa_final INDEX rs_selfield-tabindex.
+                  ENDAT.
+                ENDLOOP.
+
+*                  READ TABLE it_text INTO wa_text INDEX 1.
+*                IF sy-subrc = 0.
+*                  wa_final-url = 'URL Uploaded'.
+*                  CONCATENATE c_url 'OPEN URL' INTO wa_final-lv_icon SEPARATED BY space.
+*                  CONCATENATE c_vurl 'VIEW_URL' INTO wa_final-view_url SEPARATED BY space.
+*                  MODIFY it_final FROM wa_final INDEX rs_selfield-tabindex.
+*                ENDIF.
+
+              ENDIF.
+            ENDIF.
+*        ENDIF.
+
+          ELSE.
+            MESSAGE 'No Data Found to Upload' TYPE 'E' DISPLAY LIKE 'I'         ##NO_TEXT.
+          ENDIF.
+        ELSE.
+          MESSAGE 'URL Already Updated. Please Click on VIEW/OPEN URL to View' TYPE 'E' DISPLAY LIKE 'I'        ##NO_TEXT.
+        ENDIF.
+
+      ELSEIF rs_selfield-fieldname = 'LV_ICON'.
+
+        IF rs_selfield-value IS NOT INITIAL.
+          READ TABLE it_final INTO wa_final INDEX rs_selfield-tabindex.
+
+          lv_mblnr = wa_final-mblnr.
+          CALL FUNCTION 'READ_TEXT'
+            EXPORTING
+              client                  = sy-mandt
+              id                      = 'ZURL'
+              language                = 'E'
+              name                    = lv_mblnr
+              object                  = 'ZMBLNR'
+            TABLES
+              lines                   = it_text
+            EXCEPTIONS
+              id                      = 1
+              language                = 2
+              name                    = 3
+              not_found               = 4
+              object                  = 5
+              reference_check         = 6
+              wrong_access_to_archive = 7
+              OTHERS                  = 8.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+            MESSAGE 'URL DATA NOT FOUND' TYPE 'E' DISPLAY LIKE 'I'.
+            LEAVE TO LIST-PROCESSING.
+
+          ELSE.
+            LOOP AT it_text INTO wa_text..
+              CONCATENATE lv_finalurl wa_text-tdline INTO lv_finalurl.
+*              AT LAST.
+*                MODIFY it_final FROM wa_final INDEX rs_selfield-tabindex.
+*              ENDAT.
+            ENDLOOP.
+
+            CALL METHOD cl_gui_frontend_services=>execute
+              EXPORTING
+                document               = lv_finalurl
+*               application            =
+*               parameter              =
+*               default_directory      =
+*               maximized              =
+*               minimized              =
+*               synchronous            =
+                operation              = 'OPEN'
+              EXCEPTIONS
+                cntl_error             = 1
+                error_no_gui           = 2
+                bad_parameter          = 3
+                file_not_found         = 4
+                path_not_found         = 5
+                file_extension_unknown = 6
+                error_execute_failed   = 7
+                synchronous_failed     = 8
+                not_supported_by_gui   = 9
+                OTHERS                 = 10.
+            IF sy-subrc <> 0.
+*         Implement suitable error handling here
+              MESSAGE sy-msgno TYPE 'E'.
+            ENDIF.
+
+
+          ENDIF.
+        ELSE.
+          MESSAGE 'Invalid Selection' TYPE 'S'         ##NO_TEXT.
+        ENDIF.
+
+      ELSEIF rs_selfield-fieldname = 'VIEW_URL'.
+        IF rs_selfield-value IS NOT INITIAL.
+          READ TABLE it_final INTO wa_final INDEX rs_selfield-tabindex.
+
+          lv_mblnr = wa_final-mblnr.
+          CALL FUNCTION 'READ_TEXT'
+            EXPORTING
+              client                  = sy-mandt
+              id                      = 'ZURL'
+              language                = 'E'
+              name                    = lv_mblnr
+              object                  = 'ZMBLNR'
+            TABLES
+              lines                   = it_text
+            EXCEPTIONS
+              id                      = 1
+              language                = 2
+              name                    = 3
+              not_found               = 4
+              object                  = 5
+              reference_check         = 6
+              wrong_access_to_archive = 7
+              OTHERS                  = 8.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+            MESSAGE 'URL DATA NOT FOUND' TYPE 'E' DISPLAY LIKE 'I'.
+            LEAVE TO LIST-PROCESSING.
+
+          ELSE.
+            LOOP AT it_text INTO wa_text.
+              w_textnote-line = wa_text-tdline.
+              APPEND w_textnote TO textnote.
+              CLEAR : wa_text,w_textnote.
+            ENDLOOP.
+            CALL FUNCTION 'TXW_TEXTNOTE_EDIT'
+              EXPORTING
+                edit_mode = ' '
+              TABLES
+                t_txwnote = textnote.
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'SAVE'.
+      READ TABLE it_final INTO wa_final WITH KEY checkbox = 'X'.
+      IF sy-subrc NE 0.
+        MESSAGE 'Select Atleast One Checkbox to Save the Data' TYPE 'E' DISPLAY LIKE 'I'      ##NO_TEXT.
+*        LEAVE LIST-PROCESSING.
+      ENDIF.
+      LOOP AT it_final INTO wa_final WHERE checkbox = 'X'.
+*modify it_final from  wa_final.
+        FIND 'UPLOAD LINK' IN wa_final-url.
+        IF sy-subrc = 0.
+          CLEAR : wa_final-url.
+        ENDIF.
+        IF wa_final-url IS NOT INITIAL.
+          wa_invoice-zmblnr = wa_final-mblnr.
+          wa_invoice-zsjahr = sy-datum.
+          wa_invoice-zlifnr = wa_final-lifnr.
+          wa_invoice-zxblnr = wa_final-xblnr.
+          wa_invoice-zwerks = wa_final-werks.
+          wa_invoice-zebeln = wa_final-ebeln.
+          wa_invoice-zbudat = wa_final-budat.
+          wa_invoice-zcpudt = sy-datum.
+          wa_invoice-zcputm = sy-uzeit.
+          wa_invoice-zusnam = sy-uname.
+          wa_invoice-zurl = wa_final-url.
+          READ TABLE it_url INTO wa_url WITH KEY zmblnr = wa_final-mblnr.
+          IF wa_url-zurl IS INITIAL.
+            MODIFY zmm_vend_invoice FROM wa_invoice.
+            IF sy-subrc = 0.
+              COMMIT WORK AND WAIT.
+              MESSAGE 'URL(s) Updated Succesfully!' TYPE 'S'          ##NO_TEXT.
+            ENDIF.
+          ENDIF.
+        ELSE.
+          MESSAGE 'Only lines with URLs Updated are saved.Maintain URLs for all the checkboxes selected' TYPE 'E' DISPLAY LIKE 'I'  ##NO_TEXT.
+        ENDIF.
+        CLEAR :wa_invoice.
+      ENDLOOP.
+  ENDCASE.
+  rs_selfield-refresh = 'X'.
+  CALL METHOD ls_ref1->refresh_table_display.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form handle_double_click
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> RS_SELFIELD
+*&---------------------------------------------------------------------*
+FORM handle_double_click  USING    p_rs_selfield TYPE slis_selfield.
+
+  IF p_rs_selfield-fieldname = 'MBLNR'.
+CLEAR : lv_grn.
+    READ TABLE it_final INTO DATA(wa_final) INDEX p_rs_selfield-tabindex.
+    IF sy-subrc = 0.
+      lv_grn = wa_final-mblnr.
+
+
+      CALL FUNCTION 'MIGO_DIALOG'
+        EXPORTING
+          i_action            = 'A04'
+          i_refdoc            = 'R02'
+*         I_NOTREE            = 'X'
+*         I_NO_AUTH_CHECK     =
+          i_skip_first_screen = 'X'
+*         I_DEADEND           = 'X'
+          i_okcode            = 'OK_GO'
+*         I_LEAVE_AFTER_POST  =
+*         I_NEW_ROLLAREA      = 'X'
+          i_mblnr             = lv_grn
+        EXCEPTIONS
+          illegal_combination = 1
+          OTHERS              = 2.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+      " Calling MIGO transaction with the selected GRN number
+*    SET PARAMETER ID 'MBL' FIELD lv_grn .
+*    CALL TRANSACTION 'MIGO' AND SKIP FIRST SCREEN.
+
+    ENDIF.
+  ELSEIF p_rs_selfield-fieldname = 'PARK_NUM'.
+    CLEAR: lv_grn.
+    READ TABLE it_final INTO wa_final INDEX p_rs_selfield-tabindex.
+    IF sy-subrc = 0.
+      lv_grn = wa_final-park_num.
+      SET PARAMETER ID 'RBN' FIELD lv_grn.
+      CALL TRANSACTION 'MIR4' AND SKIP FIRST SCREEN.
+
+    ENDIF.
+
+  ELSEIF p_rs_selfield-fieldname = 'POST_DOC_NUM'.
+    CLEAR: lv_grn.
+    READ TABLE it_final INTO wa_final INDEX p_rs_selfield-tabindex.
+    IF sy-subrc = 0.
+      lv_grn = wa_final-post_doc_num.
+      SET PARAMETER ID 'BLN' FIELD lv_grn.
+      CALL TRANSACTION 'MIR4' AND SKIP FIRST SCREEN.
+
+    ENDIF.
+*
+  ELSEIF p_rs_selfield-fieldname = 'POST_ACC'.
+    CLEAR: lv_grn.
+    READ TABLE it_final INTO wa_final INDEX p_rs_selfield-tabindex.
+    IF sy-subrc = 0.
+      lv_grn = wa_final-POST_ACC.
+      SET PARAMETER ID 'BLN' FIELD lv_grn.
+      CALL TRANSACTION 'FB03' AND SKIP FIRST SCREEN.
+
+    ENDIF.
+
+  ELSEIF p_rs_selfield-fieldname = 'EBELN'.
+    CLEAR: lv_grn.
+    READ TABLE it_final INTO wa_final INDEX p_rs_selfield-tabindex.
+    IF sy-subrc = 0.
+      lv_grn = wa_final-ebeln.
+      SET PARAMETER ID 'BES' FIELD lv_grn.
+      CALL TRANSACTION 'ME23N' AND SKIP FIRST SCREEN.
+
+    ENDIF.
+  ENDIF.
+ENDFORM.
